@@ -1,0 +1,12 @@
+/.vs
+/bin
+App.config
+/obj
+packages.config
+/packages
+/Properties
+/Refs
+*.user
+ReplayMod.csproj
+ReplayMod.sln
+end
