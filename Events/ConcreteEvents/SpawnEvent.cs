@@ -20,12 +20,13 @@ namespace ReplayMod.Events.ConcreteEvents
         public string factionName;
         public Vector3 startingVelocity;
         public uint ownerId;
-
+        
         public bool isAircraft;
         public LiveryKey.KeyType liveryType;
         public ulong liveryId;
         public int liveryIndex;
         public List<WeaponMount> weapons;
+
         public void Execute(object worker)
         {
             //MySpawner.Spawn(definitionName, pos, rotation, factionName, unitId);

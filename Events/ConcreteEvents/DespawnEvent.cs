@@ -8,6 +8,7 @@ namespace ReplayMod.Events.ConcreteEvents
         public EventType EventType { get; } = EventType.Despawn;
         public double Time { get ; set; }
         public uint unitId;
+        public bool isMissileDetonated;
         public void Execute(object worker)
         {
             if(worker is UnitController controller)
@@ -20,6 +21,7 @@ namespace ReplayMod.Events.ConcreteEvents
         {
             Time = br.ReadDouble();
             unitId = br.ReadUInt32();
+            isMissileDetonated = br.ReadBoolean();
         }
 
         public void Reset()
@@ -31,6 +33,7 @@ namespace ReplayMod.Events.ConcreteEvents
         {
             bw.Write(Time);
             bw.Write(unitId);
+            bw.Write(isMissileDetonated);
         }
     }
 }

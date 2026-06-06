@@ -23,11 +23,8 @@ namespace ReplayMod.Events.ConcreteEvents
         {
             if (worker is UnitController u)
             {
-               // Plugin.logger.LogInfo("trying to add turret snapshot");
-                u.AddTurretSnapshot(this);
-               
+                u.AddTurretSnapshot(this); 
             }
-           // Plugin.logger.LogInfo("added turret transform");
         }
 
         public void Read(BinaryReader br)

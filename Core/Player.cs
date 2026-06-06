@@ -51,6 +51,7 @@ namespace ReplayMod.Core
         }
         public async Task StartPlaying(string filePath)
         {
+            enabled = false;
             if (!File.Exists(filePath)) throw new FileNotFoundException($"No such file: {filePath}");
 
             _path = filePath;
@@ -75,6 +76,7 @@ namespace ReplayMod.Core
             Plugin.logger.LogInfo("world reset, awaiting afterload");
             await AfterLoad();
             Plugin.logger.LogInfo("start playing finished");
+            enabled = true;
         }
         
         
@@ -168,8 +170,6 @@ namespace ReplayMod.Core
         // with 10k events in buffer it costs about 80kb ram, dont think i should use
         //blocking collection with bounded capacity
         private ConcurrentDictionary<uint, List<PositionSnapshot>> _unitSnapshots = new();
-        private ConcurrentQueue<IReplayEvent> _events = new(); 
-        private SemaphoreSlim _freeSpace = new SemaphoreSlim(ReplayManager.PlayerBoundedCapacity, ReplayManager.PlayerBoundedCapacity);
         /// <summary>
         /// Reads events from file. ReadOffset points on file offset.
         /// To read from beginning readOffset should be equal _dataStartOffset
@@ -377,8 +377,7 @@ namespace ReplayMod.Core
         }
         private void SkipToNextValid(BinaryReader br, FileStream fs)
         {
-            var position = fs.Position;
-           
+            var position = fs.Position;    
         }
         public async UniTask TimelineJump(double targetTime)
         {
@@ -397,7 +396,7 @@ namespace ReplayMod.Core
             CameraStateManager.i.GetCameraPosition(out var pos);
             
             await NetworkManagerNuclearOption.i.StopAsync(true);
-            await SceneHelper.LoadSceneAsync(_key);
+            await SceneHelper.LoadSceneAsync(_key, Path.GetFileName(_path));
             
 
             var fileOffset = CalculateOffset(targetTime);
@@ -450,9 +449,7 @@ namespace ReplayMod.Core
         private async UniTask ResetWorld()
         {  
             await _unitCotroller.ResetWorld();
-            foreach (var i in _events) ReplayEventFactory.Return(i);
             _buffer.ClearAndReturnToPool();
-            _events.Clear();
             _unitSnapshots.Clear();
             _restoreBuffer.Clear();
             ReplayManager.i.onReset?.Invoke();
@@ -549,28 +546,28 @@ namespace ReplayMod.Core
         private bool _cameraFlightEnabled = false;
         private void Update()
         {
-            if (awaitFrames > 0)
+            
+            if (awaitFrames-- > 0)
             {
-                awaitFrames--;
                 return;
             }
             int iterations = 0;
-            if(_restoreBuffer.Count > 0)
+            if (_restoreBuffer.Count > 0)
             {
-                while (iterations < MAX_RESTORE_ACTIONS && _restoreBuffer.TryDequeue(out var e))
+                while (iterations++ < MAX_RESTORE_ACTIONS && _restoreBuffer.TryDequeue(out var e))
                 {
                     e.Execute(_unitCotroller);
                     ReplayEventFactory.Return(e);
-                    iterations++;
                 }
                 Plugin.logger.LogInfo($"{iterations} restore actions done on this frame");
-                Plugin.logger.LogInfo($"To restore: {_restoreBuffer.Count}. Events after: {_events.Count}");
+                Plugin.logger.LogInfo($"To restore: {_restoreBuffer.Count}. Events after: {_buffer.Count}");
 
                 if (_restoreBuffer.Count > 0) return;
             }
 
-            while(_buffer.TryTakeIfReady(currentVirtualTime, out var reader))
+            while (_buffer.TryTakeIfReady(currentVirtualTime, out var reader))
             {
+                //Plugin.logger.LogInfo($"Event taken: {reader.EventType}");
                 if (reader is UpdatePositionEvent move)
                 {
                     var id = move.unitId;
@@ -591,37 +588,24 @@ namespace ReplayMod.Core
                     }
                     ReplayEventFactory.Return(move);
                 }
-                else if (reader is UpdateInputsEvent uie)
-                {
-                    _inputsBuffer.Enqueue(uie);
-                }
-                else if (reader is UpdateTurretTransform utt)
-                {
-                    _turretsBuffer.Enqueue(utt);
-                }
                 else
                 {
                     reader.Execute(_unitCotroller);
+                    ReplayEventFactory.Return(reader);
                 }
             }
 
             foreach (var kvp in _unitSnapshots)
             {
-                _unitCotroller.MoveUnit(kvp.Key, kvp.Value, currentVirtualTime);;
-            }
-
-            while (_turretsBuffer.TryDequeue(out var e))
-            {  
-                    e.Execute(_unitCotroller);
-                    ReplayEventFactory.Return(e);
+                _unitCotroller.MoveUnit(kvp.Key, kvp.Value, currentVirtualTime); ;
             }
 
             _unitCotroller.MoveTurrets(currentVirtualTime);
-            if(currentVirtualTime >= replayDuration) ForcePause();
-           
-            if(_cameraFlightEnabled)
+            if (currentVirtualTime >= replayDuration) ForcePause();
+
+            if (_cameraFlightEnabled)
             {
-                if(_cameraWaypoints.Last().time < currentVirtualTime)
+                if (_cameraWaypoints.Last().time < currentVirtualTime)
                 {
                     _cameraWaypoints.Clear();
                     _cameraFlightEnabled = false;
@@ -630,21 +614,11 @@ namespace ReplayMod.Core
                 else
                     MoveCamera();
             }
+
+            
             currentVirtualTime += Time.deltaTime;
         }
 
-        private void HandleBuffer(ConcurrentQueue<IReplayEvent> buffer)
-        {
-            while (buffer.TryPeek(out var timeCheck))
-            {
-                if (currentVirtualTime >= timeCheck.Time && buffer.TryDequeue(out var e))
-                {
-                    e.Execute(_unitCotroller);
-                    ReplayEventFactory.Return(e);
-                }
-                else break;
-            }
-        }
         private void ForcePause()
         {
             if (!_pause)

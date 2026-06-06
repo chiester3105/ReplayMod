@@ -69,20 +69,8 @@ namespace ReplayMod.Core
             {
                 _unitsOnTrack.Add(id, unit);
                 _lastPositionUpdateTime.Add(id, _virtualTime);
-                if (unit.weaponStations != null)
-                {
-                    foreach (var ws in unit.weaponStations)
-                    {
-                        foreach (var t in ws.Turrets)
-                        {
-                            if (_turretsOnTrack.TryGetValue(unit.persistentID, out var list))
-                                list.Add(t);
-                            else
-                                _turretsOnTrack[unit.persistentID] = new List<Turret>() { t };
-                        }
-                    }
-                }
-
+                
+                HandleWeaponStationAsync(unit).Forget();
 
                 var writer = ReplayEventFactory.GetEvent<SpawnEvent>();
                 writer.Time = _virtualTime;
@@ -120,34 +108,30 @@ namespace ReplayMod.Core
                 else
                     writer.isAircraft = false;
 
-
-
-                //Plugin.logger.LogInfo($"adding event {writer.EventType} ");
                 _eventQueue.Add(writer);
                 _eventCount++;
-                //Plugin.logger.LogInfo($"event {writer.EventType} added, {_eventQueue.Count}");
             }
-            //Plugin.logger.LogInfo($"Unit {unit} spawned and tracking now.");
         }
+
+        private HashSet<uint> _despawnSkip = new();
         private void HandleUnitUnregister(Unit unit)
         {
-            if (unit.persistentID.Id == 0 || unit is Missile)
+            if (unit.persistentID.Id == 0) return; 
+            if(_despawnSkip.Contains(unit.persistentID.Id))
             {
-                //Plugin.logger.LogInfo($"ignoring unit despawn because it is preview unit");
-                return; 
+                _despawnSkip.Remove(unit.persistentID.Id);
+                return;
             }
             _unitsOnTrack.Remove(unit.persistentID);
             _lastPositionUpdateTime.Remove(unit.persistentID);
             var writer = ReplayEventFactory.GetEvent<DespawnEvent>();
             writer.Time = _virtualTime;
             writer.unitId = unit.persistentID.Id;
-
+            writer.isMissileDetonated = false;
             _turretsOnTrack.Remove(unit.persistentID);
 
             _eventQueue.Add(writer);
             _eventCount++;
-            //Plugin.logger.LogInfo($"Unit {unit} despawned");
-            //ill write despawn events later
         }
         private void HandleMissileDetonate(Missile missile)
         {
@@ -156,8 +140,10 @@ namespace ReplayMod.Core
             var writer = ReplayEventFactory.GetEvent<DespawnEvent>();
             writer.Time = _virtualTime;
             writer.unitId = missile.persistentID.Id;
+            writer.isMissileDetonated = true;
             _eventQueue.Add(writer);
             _eventCount++;
+            _despawnSkip.Add(missile.persistentID.Id);
         }
         private void HandlePartDetach(Unit unit, byte partId)
         {
@@ -176,6 +162,25 @@ namespace ReplayMod.Core
             writer.unitId = aircraft.persistentID.Id;
             _eventQueue.Add(writer);
             _eventCount++;
+        }
+        private async UniTask HandleWeaponStationAsync(Unit unit)
+        {
+            await UniTask.WhenAny
+                (UniTask.WaitUntil(() => unit.weaponStations != null),
+                UniTask.WaitForSeconds(1));
+            if (unit.weaponStations != null)
+            {
+                foreach (var ws in unit.weaponStations)
+                {
+                    foreach (var t in ws.Turrets)
+                    {
+                        if (_turretsOnTrack.TryGetValue(unit.persistentID, out var list))
+                            list.Add(t);
+                        else
+                            _turretsOnTrack[unit.persistentID] = new List<Turret>() { t };
+                    }
+                }
+            }
         }
         private Dictionary<PersistentID, double> _lastPositionUpdateTime = new();
         private Dictionary<PersistentID, double> _lastInputUpdateTime = new();
@@ -241,27 +246,25 @@ namespace ReplayMod.Core
                             writer.attachedUnitId = kvp.Key.Id;
                             writer.elevationAngle = turret.elevationAngle;
                             writer.traverseAngle = turret.traverseAngle;
+                            writer.weaponStationIdx = turret.currentWeaponStation.Number;
+                            Plugin.logger.LogInfo("Adding turret snapshot");
                             _eventQueue.Add(writer);
                         }
                     }
                 }
                 else _lastTurretUpdateTime[kvp.Key] = _virtualTime;
             }
-
-            _virtualTime += Time.deltaTime;
-            
+            _virtualTime += Time.deltaTime; 
         }
 
         private long _eventCount = 0;
         private double _duration = 0;
-        //private ConcurrentQueue<IReplayEvent> _eventQueue = new();  BC better for producer-consumer
         private BlockingCollection<IReplayEvent> _eventQueue = new();  
         private Task _fileWriter;
         private CancellationTokenSource _cts;
 
         private BinaryWriter _binaryWriter;
         private FileStream _fileStream;
-
         public async Task StartRecording(string filePath, string mapPrefabName)
         {
             try
@@ -352,27 +355,13 @@ namespace ReplayMod.Core
         }
         private void WriteLoop(CancellationToken token)
         {
-            //List<IndexEntry> indexes = new List<IndexEntry>();
-            //double lastTime = -1;
             try
             { 
                 foreach(var ev in _eventQueue.GetConsumingEnumerable(token))
                 {
-                    //long offset = _fileStream.Position;
-                    //Plugin.SafeLog($"writing event {ev.EventType} ");
                     _binaryWriter.Write((byte)ev.EventType);
                     ev.Write(_binaryWriter);
-                    //if(ev.Time > lastTime)
-                    //{
-                    //    indexes.Add(new IndexEntry
-                    //    {
-                    //        Offset = offset,
-                    //        VirtualTime = ev.Time,
-                    //    });
-                    //}
-                    //lastTime = ev.Time;
                     ReplayEventFactory.Return(ev);
-                    //Plugin.SafeLog($"event written {ev.EventType}");
                 }
             }
             catch(OperationCanceledException)
@@ -381,21 +370,10 @@ namespace ReplayMod.Core
             }
             catch(Exception ex)
             {
-                // wtf
                 Plugin.SafeLogError(ex.ToString());
             }
             finally
             {
-                //long indexStartOffset = _fileStream.Position;
-               // foreach(var e in indexes)
-               // {
-               //     _binaryWriter.Write(e.VirtualTime);
-               //     _binaryWriter.Write(e.Offset);
-               // }
-                //_fileStream.Seek(_indexStartPosition, SeekOrigin.Begin);
-               // _binaryWriter.Write(indexStartOffset);
-
-
                 _binaryWriter?.Flush();
             }
         }
@@ -410,7 +388,6 @@ namespace ReplayMod.Core
         private string _currentMap;
         private long _durationPosition;
         private long _eventCountPosition;
-        //private long _indexStartPosition;
         /// <summary>
         /// Header format:
         /// 1. random number as unique application marker [uint]
@@ -432,7 +409,6 @@ namespace ReplayMod.Core
             bw.Write(Plugin.Patch);
 
             //map section
-            //bw.Write(_currentMap); no its shit ig
             bw.Write((byte)_currentMapKey.Type);
             bw.Write(_currentMapKey.Path);
 
@@ -451,8 +427,6 @@ namespace ReplayMod.Core
             bw.Write((double)0);
             _eventCountPosition = fs.Position;
             bw.Write((long)0);
-            //_indexStartPosition = fs.Position;
-            // bw.Write((long)0);
             ushort usedUnits = (ushort)_usedUnits.Count;
             bw.Write(usedUnits);
             foreach(var key in _usedUnits)

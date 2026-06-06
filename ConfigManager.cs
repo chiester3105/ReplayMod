@@ -10,7 +10,7 @@ namespace ReplayMod
         public static ConfigEntry<KeyboardShortcut> TogglePause { get; set; }
         public static ConfigEntry<KeyboardShortcut> CreateCameraWaypoint { get; set; }
         public static ConfigEntry<KeyboardShortcut> DeleteLastCameraWaypoint { get; set; }
-
+        
         public static void Configure(ConfigFile config)
         {
             ToggleMenu = config.Bind("Hotkeys", "Toggle menu", new KeyboardShortcut(UnityEngine.KeyCode.F5));

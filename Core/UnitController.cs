@@ -32,7 +32,7 @@ namespace ReplayMod.Core
                 //Plugin.logger.LogInfo('1');
                 if (!Encyclopedia.Lookup.TryGetValue(e.jsonKey, out var definition))
                     Plugin.logger.LogWarning("cant spawn unit");
-                Plugin.logger.LogInfo($"trying to spawn {e.jsonKey}");
+                //Plugin.logger.LogInfo($"trying to spawn {e.jsonKey}");
                 Unit u = null;
                 if (NetworkSceneSingleton<Spawner>.i == null)
                 {
@@ -90,6 +90,19 @@ namespace ReplayMod.Core
                     _unitMap[e.unitId] = u.persistentID;
                     _reverseUnitMap[u.persistentID] = e.unitId;
                     _isRbDisabled[u.persistentID] = false;
+
+                    
+                    
+                        if (_queuedSnapshots.TryGetValue(e.unitId, out var snapshots))
+                        {
+                            foreach (var snapshot in snapshots)
+                            {
+                                AddQueuedSnapshot(snapshot).Forget();
+                            }
+                            _queuedSnapshots.Remove(e.unitId);
+                        }
+                    
+                    
                 }
                 
             }
@@ -364,32 +377,65 @@ namespace ReplayMod.Core
         }
 
 
+        private Dictionary<uint, List<TurretSnapshot>> _queuedSnapshots = new();
         private Dictionary<Turret, List<TurretSnapshot>> _turretSnapshots = new();
         public void AddTurretSnapshot(UpdateTurretTransform e)
         {
             try
             {
+                Plugin.logger.LogWarning("Adding turret snapshot");
                 TurretSnapshot snapshot = TurretSnapshot.Create(e);
-                if (!TrySearchUnit(e.attachedUnitId, out var pid, out var unit)) return;
+                if (!TrySearchUnit(e.attachedUnitId, out var pid, out var unit))
+                {
+                    Plugin.logger.LogWarning("enqueue turret snapshot");
+                    if (_queuedSnapshots.TryGetValue(e.attachedUnitId, out var value))
+                    {
+                        value.Add(snapshot);
+                    }
+                    else
+                        _queuedSnapshots[e.attachedUnitId] = new List<TurretSnapshot>() { snapshot };
+                    return;
+                }
                 if (e.turretIdx > unit.weaponStations.Count - 1) return;
-                var turret = unit.weaponStations[e.weaponStationIdx].GetTurret();
+                var turret = unit.weaponStations[e.weaponStationIdx].Turrets[e.turretIdx];
                 //Plugin.logger.LogInfo($"ADD TURRET SNAPSHOT: {turret} | {turret.attachedUnit}");
                 if (turret != null && _turretSnapshots.TryGetValue(turret, out var list))
                 {
                     //Plugin.logger.LogInfo("Adding snapshot");
                     list.Add(snapshot);
                 }
-                else
+                else if(turret != null)
                 {
                     _turretSnapshots[turret] = new List<TurretSnapshot> { snapshot };
                     turret.enabled = false;
                     //Plugin.logger.LogInfo("Created snapshot list");
                 }
+                
             }
             catch (Exception ex)
             {
                 Plugin.logger.LogWarning($"Add turret snapshot error: {ex}");
             }
+        }
+        private async UniTask AddQueuedSnapshot(TurretSnapshot snapshot)
+        {
+            await UniTask.Yield();
+            if (!TrySearchUnit(snapshot.ownerId, out var pid, out var unit)) return;
+            Turret turret = null;
+            if (snapshot.turretIdx < unit.weaponStations[snapshot.weaponStationIdx].Turrets.Count)
+            {
+                turret = unit.weaponStations[snapshot.weaponStationIdx].Turrets[snapshot.turretIdx];
+            }
+            if (turret != null && _turretSnapshots.TryGetValue(turret, out var list))
+            {
+                list.Add(snapshot);
+            }
+            else if (turret != null)
+            {
+                _turretSnapshots[turret] = new List<TurretSnapshot> { snapshot };
+                turret.enabled = false;
+            }
+            Plugin.logger.LogWarning("Dequeue turret snapshot");
         }
         public void MoveTurrets(double time)
         {
@@ -403,7 +449,6 @@ namespace ReplayMod.Core
                 int idx = Tools.FindLastIndex(positions, time);
                 if (idx < 0)
                 {
- 
                     SetTurretTransform(turret, positions[0].elevationAngle, positions[0].traverseAngle);
                     return;
                 }
@@ -437,9 +482,9 @@ namespace ReplayMod.Core
 
             turret.elevationAngle = elevation;
             turret.traverseAngle = traverse;
-           // Plugin.logger.LogInfo($"Update turret tranform for turret {turret}, attached {turret.attachedUnit}\n" +
-           //     $"entered elevation and traverse: {elevation}; {traverse}|\n" +
-           //     $"current: {turret.elevationAngle}; {turret.traverseAngle}");
+            //Plugin.logger.LogInfo($"Update turret tranform for turret {turret}, attached {turret.attachedUnit}\n" +
+            //   $"entered elevation and traverse: {elevation}; {traverse}|\n" +
+            //    $"current: {turret.elevationAngle}; {turret.traverseAngle}");
         }
     }
 }

@@ -203,7 +203,7 @@ namespace ReplayMod.Core
         
         private void HandleInputs()
         {
-            if(ConfigManager.ToggleRecord.Value.IsDown())
+            if(ConfigManager.ToggleRecord.Value.GetDown())
             {
                 if (_currentState != ModStates.Record)
                     SwitchState(ModStates.Record);

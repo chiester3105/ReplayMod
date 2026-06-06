@@ -80,7 +80,7 @@ namespace ReplayMod
                 {
                     ToggleTimeline();
                 }
-                if (GUI.Button(new Rect(5, 455, 95, 25), "Cam flight"))
+                if (GUI.Button(new Rect(5, 430, 95, 25), "Cam flight"))
                 {
                     ReplayManager.i.StartCamFlight();
                 }
