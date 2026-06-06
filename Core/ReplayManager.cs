@@ -19,18 +19,22 @@ namespace ReplayMod.Core
         public const double GroundVehicleUpdateInterval = 0.4; //grounds and ships
         public const double BuildingUpdateInterval = 30; //lmao
         public const double UpdateInputsInterval = 0.3;
-        public const double TurretsUpdateInterval = 1.5;  
+        public const double TurretsUpdateInterval = 1.5;
+        public const int PlayerBoundedCapacity = 10000;
 
         private ModStates _currentState;
         private Recorder _recorder;
         private Player _player;
         private UI _mainPanel;
+        private VisualWaypoints _waypoints;
         public bool UseCaching { get; private set; } = false;
         public bool IgnorePilotsSpawn { get; private set; } = false;
         public double WorldSnapshotsInterval { get; private set; } = 20; 
 
         private string _lastFile = string.Empty;
         private string _path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Replays");
+
+        public Action onReset;
         public void Configure()
         {
 
@@ -55,7 +59,8 @@ namespace ReplayMod.Core
                 DontDestroyOnLoad(gameObject);
 
                 _mainPanel = gameObject.AddComponent<UI>();
-                
+                _waypoints = gameObject.AddComponent<VisualWaypoints>();
+                onReset += _waypoints.Restore;
 
                 _recorder = gameObject.AddComponent<Recorder>();
                 _player = gameObject.AddComponent<Player>();
@@ -125,6 +130,7 @@ namespace ReplayMod.Core
                         _recorder.enabled = true;
                         _lastFile = GetFilePath();
                         Plugin.logger.LogInfo("Starting record");
+                        _waypoints.Reset();
                         await _recorder.StartRecording(_lastFile, GetMapPrefabName());
                         virtualTime = 0;
                         break;   
@@ -197,7 +203,7 @@ namespace ReplayMod.Core
         
         private void HandleInputs()
         {
-            if(Input.GetKeyDown(KeyCode.I))
+            if(ConfigManager.ToggleRecord.Value.IsDown())
             {
                 if (_currentState != ModStates.Record)
                     SwitchState(ModStates.Record);
@@ -211,17 +217,36 @@ namespace ReplayMod.Core
                 else
                     SwitchState(ModStates.Idle);
             }*/
-            if(Input.GetKeyDown(KeyCode.Space))
+            if(ConfigManager.TogglePause.Value.GetDown())
             {
                 if (_currentState == ModStates.Replay && _player != null)
                 {
                     _player.TogglePause();
                 }
             }
-            if(Input.GetKeyDown(KeyCode.F5))
+            if(ConfigManager.ToggleMenu.Value.GetDown())
             {
                 _mainPanel.Toggle();
             }
+            if (ConfigManager.CreateCameraWaypoint.Value.GetDown())
+            {
+                CameraStateManager.i.GetCameraPosition(out var cam);
+
+                PositionSnapshot snapshot = new PositionSnapshot()
+                {
+                    position = cam.Position,
+                    rotation = cam.Rotation,
+                    time = GetCurrentVirtualTime()
+                };
+                _waypoints.AddWaypoint(snapshot);
+                _mainPanel.AddWaypoint(snapshot);
+            }
+            if (ConfigManager.DeleteLastCameraWaypoint.Value.GetDown())
+            {
+                _waypoints.DeleteLast();
+                _mainPanel.DeleteLastWaypoint();
+            }
+
         }
         
         public bool ShouldContinue(uint id)
@@ -298,6 +323,16 @@ namespace ReplayMod.Core
         public void TogglePause()
         {
             _player.TogglePause();
+        }
+
+        public void StopCamFlight()
+        {
+            _waypoints.SetRenderActive(true);
+        }
+        public void StartCamFlight()
+        {
+            _player.StartCameraFlight(_waypoints.CameraWaypoints).Forget();
+            _waypoints.SetRenderActive(false);
         }
     }
 

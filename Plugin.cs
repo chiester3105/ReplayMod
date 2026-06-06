@@ -2,13 +2,10 @@
 using HarmonyLib;
 using BepInEx.Logging;
 using System;
-using UnityEngine;
 using System.Threading.Tasks;
 using Cysharp.Threading.Tasks;
 using System.Collections.Concurrent;
 using ReplayMod.Core;
-using ReplayMod.Debug;
-using System.Security.Cryptography;
 
 namespace ReplayMod
 {
@@ -49,7 +46,8 @@ namespace ReplayMod
                 LoadVersionInfo();
                 Plugin.logger.LogInfo("Plugin loaded");
                 Task.Run(() => EncyclopediaLookup());
-                
+
+                ConfigManager.Configure(this.Config);
             }
             catch (Exception e)
             {
@@ -100,7 +98,7 @@ namespace ReplayMod
                 action.Invoke();
             }
             
-            
+            /*
             if(Input.GetKeyDown(KeyCode.L))
             {
                 DebugTools.DisableRbToSelectedAircraft();
@@ -112,7 +110,7 @@ namespace ReplayMod
             if (Input.GetKeyDown(KeyCode.Y))
             {
                 DebugTools.ShowWeaponStations();
-            }
+            }*/
         }  
        
         public void FixedUpdate()

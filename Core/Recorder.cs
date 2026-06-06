@@ -37,7 +37,7 @@ namespace ReplayMod.Core
             UnitRegistryPatch.onRegisterUnit += HandleUnitRegister;
             UnitRegistryPatch.onUnregisterUnit += HandleUnitUnregister;
             UnitPatche.onPartDetached += HandlePartDetach;
-            AircraftPatche.onSetGear += HandleSetGear;
+            AircraftPatches.onSetGear += HandleSetGear;
             MissilePatch.onDetonate += HandleMissileDetonate;
         }
         private  void Unsubscribe()
@@ -45,7 +45,7 @@ namespace ReplayMod.Core
             UnitRegistryPatch.onRegisterUnit -= HandleUnitRegister;
             UnitRegistryPatch.onUnregisterUnit -= HandleUnitUnregister;
             UnitPatche.onPartDetached -= HandlePartDetach;
-            AircraftPatche.onSetGear -= HandleSetGear;
+            AircraftPatches.onSetGear -= HandleSetGear;
             MissilePatch.onDetonate -= HandleMissileDetonate;
         }
 
@@ -188,7 +188,7 @@ namespace ReplayMod.Core
             {
                 var pid = kvp.Key;
                 Unit unit = kvp.Value;
-                if (unit == null) continue; //wtf
+                if (unit == null) continue; 
                 if (!_lastPositionUpdateTime.TryGetValue(pid, out double lastTime))
                     continue;
                 double interval = ReplayManager.i.GetIntervalForUnit(unit);
@@ -283,9 +283,9 @@ namespace ReplayMod.Core
                 Plugin.SafeLog($"Units {units.Length}");
                 Queue<Unit> other = new();
 
-                foreach (Unit unit in units) //firstly aircrafts
+                foreach (Unit unit in units) //missile owners have to spawn firstly
                 {
-                    if (unit is Aircraft)
+                    if (!(unit is Missile))
                         HandleUnitRegister(unit, unit.persistentID);
                     else other.Enqueue(unit);
                 }
@@ -320,8 +320,7 @@ namespace ReplayMod.Core
             _eventQueue.CompleteAdding();
             try { await _fileWriter; } catch (OperationCanceledException) { }
 
-            // 
-            //long indexStartPosition = _fileStream.Position;
+            
             _fileStream.Seek(_durationPosition, SeekOrigin.Begin);
             _binaryWriter.Write(_duration);      
             _fileStream.Seek(_eventCountPosition, SeekOrigin.Begin);
@@ -336,8 +335,7 @@ namespace ReplayMod.Core
 
             _unitsOnTrack.Clear();
             _lastPositionUpdateTime.Clear();
-            //Unsubscribe();
-
+            
             
             _cts = null;
             _fileWriter = null;

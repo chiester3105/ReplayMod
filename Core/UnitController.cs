@@ -3,11 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using Cysharp.Threading.Tasks;
 using NuclearOption.Jobs;
-using NuclearOption.Networking;
 using NuclearOption.SavedMission;
 using NuclearOption.SceneLoading;
 using ReplayMod.Data;
-using ReplayMod.Events;
 using ReplayMod.Events.ConcreteEvents;
 using UnityEngine;
 
@@ -179,7 +177,7 @@ namespace ReplayMod.Core
             }
 
             // key frames search
-            int idx = FindLastIndex(positions, currentTime);
+            int idx = Tools.FindLastIndex(positions, currentTime);
             if (idx < 0) 
             {
                 SetUnitTransform(unit, positions[0]);
@@ -206,42 +204,6 @@ namespace ReplayMod.Core
 
         }
 
-        private int FindLastIndex(List<PositionSnapshot> positions, double time)
-        {
-            int lo = 0, hi = positions.Count - 1, best = -1;
-            while (lo <= hi)
-            {
-                int mid = (lo + hi) / 2;
-                if (positions[mid].time <= time)
-                {
-                    best = mid;
-                    lo = mid + 1;
-                }
-                else
-                {
-                    hi = mid - 1;
-                }
-            }
-            return best;
-        }
-        private int FindLastIndex(List<TurretSnapshot> positions, double time)
-        {
-            int lo = 0, hi = positions.Count - 1, best = -1;
-            while (lo <= hi)
-            {
-                int mid = (lo + hi) / 2;
-                if (positions[mid].time <= time)
-                {
-                    best = mid;
-                    lo = mid + 1;
-                }
-                else
-                {
-                    hi = mid - 1;
-                }
-            }
-            return best;
-        }
         private void SetUnitTransform(Unit unit, PositionSnapshot snapshot)
         {
             //Plugin.logger.LogInfo($"Trying to set position: {unit} {snapshot.position}");
@@ -438,7 +400,7 @@ namespace ReplayMod.Core
                 if(positions == null || positions.Count == 0) continue;
                 var turret = kvp.Key;
                 if (turret == null) continue;
-                int idx = FindLastIndex(positions, time);
+                int idx = Tools.FindLastIndex(positions, time);
                 if (idx < 0)
                 {
  

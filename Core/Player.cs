@@ -33,9 +33,12 @@ namespace ReplayMod.Core
         private CancellationTokenSource _producerCts;
         private CancellationTokenSource _cachingCts;
         private Task _producerTask;
+        private BoundedEventBuffer _buffer;
 
         private bool _onReset = false;
         private bool _loaded = false;
+
+        
         private void Awake()
         {
             DontDestroyOnLoad(this);
@@ -57,6 +60,7 @@ namespace ReplayMod.Core
             _binaryReader = new BinaryReader(_fileStream);
             _producerCts = new CancellationTokenSource();
             _unitCotroller = new UnitController(_key);
+            _buffer = new BoundedEventBuffer(ReplayManager.PlayerBoundedCapacity);
 
             await StartLoading(_binaryReader);
 
@@ -165,8 +169,7 @@ namespace ReplayMod.Core
         //blocking collection with bounded capacity
         private ConcurrentDictionary<uint, List<PositionSnapshot>> _unitSnapshots = new();
         private ConcurrentQueue<IReplayEvent> _events = new(); 
-        private double _lastTimeRead = 0;
-        private const double _windowSize = 10;
+        private SemaphoreSlim _freeSpace = new SemaphoreSlim(ReplayManager.PlayerBoundedCapacity, ReplayManager.PlayerBoundedCapacity);
         /// <summary>
         /// Reads events from file. ReadOffset points on file offset.
         /// To read from beginning readOffset should be equal _dataStartOffset
@@ -183,42 +186,10 @@ namespace ReplayMod.Core
                 {
                    
                     EventType eventType = (EventType)_binaryReader.ReadByte();
-                    var writer = ReplayEventFactory.CreateAndRead(eventType, _binaryReader);
-                    _lastTimeRead = writer.Time;
-                    if(writer is UpdatePositionEvent move)
-                    {  
-                        var id = move.unitId;
-                        var snapshot = new PositionSnapshot
-                        {
-                            position = move.position,
-                            rotation = move.rotation,
-                            velocity = move.velocity,
-                            time = move.Time
-                        };
-                        if (_unitSnapshots.TryGetValue(id, out var collection))
-                        {
-                            collection.Add(snapshot);
-                        }
-                        else
-                        {
-                            _unitSnapshots.TryAdd(id, new List<PositionSnapshot>() { snapshot });
-                        }
-                        ReplayEventFactory.Return(move);
-                    }
-                    else if (writer is UpdateInputsEvent uie)
-                    {
-                        _inputsBuffer.Enqueue(uie);
-                    }
-                    else if (writer is UpdateTurretTransform utt)
-                    {
-                        _turretsBuffer.Enqueue(utt);
-                    }
-                    else
-                    {
-                        _events.Enqueue(writer);
-                    }
-                    //if (_lastTimeRead - currentVirtualTime < _windowSize)
-                    //    Thread.Sleep(10);
+                    var reader = ReplayEventFactory.CreateAndRead(eventType, _binaryReader);
+
+                    _buffer.Add(reader, token);
+
                     token.ThrowIfCancellationRequested();
                 }
             }
@@ -480,9 +451,11 @@ namespace ReplayMod.Core
         {  
             await _unitCotroller.ResetWorld();
             foreach (var i in _events) ReplayEventFactory.Return(i);
+            _buffer.ClearAndReturnToPool();
             _events.Clear();
             _unitSnapshots.Clear();
             _restoreBuffer.Clear();
+            ReplayManager.i.onReset?.Invoke();
         }
         private void RestoreWorldState(double time, long producerStartPos)
         {
@@ -572,7 +545,8 @@ namespace ReplayMod.Core
         {
             
         }
-        
+        private List<PositionSnapshot> _cameraWaypoints = new();
+        private bool _cameraFlightEnabled = false;
         private void Update()
         {
             if (awaitFrames > 0)
@@ -595,27 +569,42 @@ namespace ReplayMod.Core
                 if (_restoreBuffer.Count > 0) return;
             }
 
-            HandleBuffer(_events);
-            /*while(_events.TryPeek(out var timeCheck))
+            while(_buffer.TryTakeIfReady(currentVirtualTime, out var reader))
             {
-                if (currentVirtualTime >= timeCheck.Time && _events.TryDequeue(out var e))
+                if (reader is UpdatePositionEvent move)
                 {
-                    e.Execute(_unitCotroller);
-                    ReplayEventFactory.Return(e);
+                    var id = move.unitId;
+                    var snapshot = new PositionSnapshot
+                    {
+                        position = move.position,
+                        rotation = move.rotation,
+                        velocity = move.velocity,
+                        time = move.Time
+                    };
+                    if (_unitSnapshots.TryGetValue(id, out var collection))
+                    {
+                        collection.Add(snapshot);
+                    }
+                    else
+                    {
+                        _unitSnapshots.TryAdd(id, new List<PositionSnapshot>() { snapshot });
+                    }
+                    ReplayEventFactory.Return(move);
                 }
-                else break;
-            }*/
+                else if (reader is UpdateInputsEvent uie)
+                {
+                    _inputsBuffer.Enqueue(uie);
+                }
+                else if (reader is UpdateTurretTransform utt)
+                {
+                    _turretsBuffer.Enqueue(utt);
+                }
+                else
+                {
+                    reader.Execute(_unitCotroller);
+                }
+            }
 
-            HandleBuffer(_inputsBuffer);
-            /*while (_inputsBuffer.TryPeek(out var timeCheck))
-            {
-                if (currentVirtualTime >= timeCheck.Time && _inputsBuffer.TryDequeue(out var e))
-                {
-                    e.Execute(_unitCotroller);
-                    ReplayEventFactory.Return(e);
-                }
-                else break;
-            }*/
             foreach (var kvp in _unitSnapshots)
             {
                 _unitCotroller.MoveUnit(kvp.Key, kvp.Value, currentVirtualTime);;
@@ -630,7 +619,17 @@ namespace ReplayMod.Core
             _unitCotroller.MoveTurrets(currentVirtualTime);
             if(currentVirtualTime >= replayDuration) ForcePause();
            
-           
+            if(_cameraFlightEnabled)
+            {
+                if(_cameraWaypoints.Last().time < currentVirtualTime)
+                {
+                    _cameraWaypoints.Clear();
+                    _cameraFlightEnabled = false;
+                    ReplayManager.i.StopCamFlight();
+                }
+                else
+                    MoveCamera();
+            }
             currentVirtualTime += Time.deltaTime;
         }
 
@@ -671,5 +670,123 @@ namespace ReplayMod.Core
             if (_unitCotroller == null) return true;
             return _unitCotroller.ShouldContinuePatchedMethod(id);
         }
+
+        public async UniTask StartCameraFlight(List<PositionSnapshot> snapshots)
+        {
+           if (snapshots.Count == 0) return;
+           _cameraWaypoints = new (snapshots);
+            await TimelineJump(snapshots[0].time);
+            _cameraFlightEnabled = true;
+        }
+
+        private void MoveCamera()
+        {
+            var idx = Tools.FindLastIndex(_cameraWaypoints, currentVirtualTime);
+            if (idx < 0)
+            {
+                SetCameraTransform(_cameraWaypoints[0]);
+                return;
+            }
+            if (idx >= _cameraWaypoints.Count - 1)
+            {
+                SetCameraTransform(_cameraWaypoints[_cameraWaypoints.Count - 1]);
+                return;
+            }
+
+            var prev = _cameraWaypoints[idx];
+            var next = _cameraWaypoints[idx + 1];
+            float t = (float)((currentVirtualTime - prev.time) / (next.time - prev.time));
+            t = Mathf.Clamp01(t);
+
+            Vector3 pos = Vector3.Lerp(prev.position.ToLocalPosition(), next.position.ToLocalPosition(), t);
+            Quaternion rot = Quaternion.Slerp(prev.rotation, next.rotation, t);
+
+            SetCameraTransform(pos, rot);
+        }
+
+        private void SetCameraTransform(PositionSnapshot snapshot)
+        {
+            SetCameraTransform(snapshot.position.ToLocalPosition(), snapshot.rotation);
+        }
+
+        private void SetCameraTransform(Vector3 position,  Quaternion rotation)
+        {
+            CameraStateManager.i.SetCameraPosition(new NuclearOption.SavedMission.PositionRotation()
+            {
+                Position = position.ToGlobalPosition(),
+                Rotation = rotation
+            });
+        }
+
+        private class BoundedEventBuffer
+        {
+            private ConcurrentQueue<IReplayEvent> _queue = new();
+            private int _capacity;
+            private SemaphoreSlim _freeSpace;
+            public int Count { get { return _queue.Count; } }
+            public int FreeSpace { get { return _capacity-Count; } }
+            public BoundedEventBuffer(int capacity)
+            {
+                _capacity = capacity;
+                _freeSpace = new SemaphoreSlim(capacity, capacity);
+            }
+
+            /// <summary>
+            /// Adds element to buffer.
+            /// Blocks the execution thread if there's no free space in the buffer.
+            /// Unblocks as soon as space becomes available.
+            /// </summary>
+            /// <param name="e"></param>
+            /// <param name="token"></param>
+            public void Add(IReplayEvent e, CancellationToken token)
+            {
+                _freeSpace.Wait(token);
+                _queue.Enqueue(e);
+            }
+            /// <summary>
+            /// If an element is extracted from the buffer, returns true, gives IReplayEvent, and frees up space in the buffer.
+            /// False if there is no elements in buffer or time check failed.
+            /// </summary>
+            /// <param name="time"></param>
+            /// <param name="e"></param>
+            /// <returns></returns>
+            public bool TryTakeIfReady(double time, out IReplayEvent e)
+            {
+                e = null;
+                if(_queue.TryPeek(out var timeCheck))
+                {
+                    if ((timeCheck.EventType == EventType.Move ||
+                        timeCheck.EventType == EventType.UpdateTurret)
+                        && time >= timeCheck.Time - 4)
+                    {
+                        _queue.TryDequeue(out e);
+                        _freeSpace.Release();
+                        return true;
+                    }
+                    else
+                    {
+                        if (time >= timeCheck.Time)
+                        {
+                            _queue.TryDequeue(out e);
+                            _freeSpace.Release();
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+            /// <summary>
+            /// Returns all events to event bool and frees buffer space.
+            /// </summary>
+            public void ClearAndReturnToPool()
+            {
+                while(_queue.TryDequeue(out var e))
+                {
+                    ReplayEventFactory.Return(e);
+                    _freeSpace.Release();
+                }
+            }
+        }
     }
+       
 }

@@ -1,24 +1,21 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using ReplayMod.Core;
-using Steamworks;
+using ReplayMod.Data;
 using UnityEngine;
-using static System.Net.Mime.MediaTypeNames;
 
 namespace ReplayMod
 {
     public class UI : MonoBehaviour
     {
-        private Texture2D _circleTexture;
+        private Texture2D _statusCircleTexture;
+        private Texture2D _timelinePointCircleTexture;
         private float _blinkSpeed = 5f;
         private bool _enabled = false;
-        private void CreateCircleTexture(int size)
+        private void CreateCircleTexture(int size, out Texture2D texture)
         {
-            _circleTexture = new Texture2D(size, size);
+            texture = new Texture2D(size, size);
             Color[] colors = new Color[size * size];
             float radius = size / 2f;
             for (int y = 0; y < size; y++)
@@ -33,8 +30,8 @@ namespace ReplayMod
                         colors[y * size + x] = Color.clear;
                 }
             }
-            _circleTexture.SetPixels(colors);
-            _circleTexture.Apply();
+            texture.SetPixels(colors);
+            texture.Apply();
         }
         private void Awake()
         {
@@ -58,6 +55,7 @@ namespace ReplayMod
             }
             DrawTimeline();
             DisplayCurrentStatus();
+            DrawTimelineMarkers();
         }
 
         private void Draw(int windowId)
@@ -78,16 +76,20 @@ namespace ReplayMod
             if (ReplayManager.i.GetState() == ModStates.Replay)
             {
                 string text = _showTimeline ? "Hide timeline" : "Show timeline";
-                if (GUI.Button(new Rect(15, 460, 90, 25), text))
+                if (GUI.Button(new Rect(5, 460, 95, 25), text))
                 {
                     ToggleTimeline();
                 }
+                if (GUI.Button(new Rect(5, 455, 95, 25), "Cam flight"))
+                {
+                    ReplayManager.i.StartCamFlight();
+                }
                 string text2 = TimeScaleManager.Scale == 0 ? "Playback" : "Pause";
-                if (GUI.Button(new Rect(115, 460, 90, 25), text2))
+                if (GUI.Button(new Rect(110, 460, 95, 25), text2))
                 {
                     ReplayManager.i.TogglePause();
                 }
-                if (GUI.Button(new Rect(215, 460, 90, 25), "Quit"))
+                if (GUI.Button(new Rect(215, 460, 95, 25), "Quit"))
                 {
                     ReplayManager.i.SwitchState(ModStates.Idle);
                 }
@@ -131,13 +133,13 @@ namespace ReplayMod
         
         private void DisplayCurrentStatus()
         {
-            if (_circleTexture == null) CreateCircleTexture(20);
+            if (_statusCircleTexture == null) CreateCircleTexture(20, out _statusCircleTexture);
             if (ReplayManager.i.GetState() != ModStates.Record) return;
             float alpha = 0.3f + 0.7f * (Mathf.Sin(Time.time * _blinkSpeed) * 0.5f + 0.5f);
 
             GUI.color = new Color(1f, 0f, 0f, alpha);
             Rect rect = new Rect(10, 10, 20, 20);
-            GUI.DrawTexture(rect, _circleTexture);
+            GUI.DrawTexture(rect, _statusCircleTexture);
 
             GUI.color = Color.white; 
         }
@@ -196,6 +198,36 @@ namespace ReplayMod
 
                 GUI.Label(new Rect(Screen.width / 2 - 10, 10, 1000, 20), $"{currentTime:F1}s / {duration:F1}s");
             } 
+        }
+
+        private List<PositionSnapshot> _waypoints = new();
+        public void DeleteLastWaypoint()
+        {
+            if (_waypoints.Count > 0)
+            {
+                _waypoints.RemoveAt(_waypoints.Count - 1);
+            }
+        }
+        public void AddWaypoint(PositionSnapshot snapshot)
+        {
+            if (_timelinePointCircleTexture == null) CreateCircleTexture(7, out _timelinePointCircleTexture);
+
+            _waypoints.Add(snapshot);
+        }
+
+        private void DrawTimelineMarkers()
+        {
+            foreach (var waypoint in _waypoints)
+            {
+                var t =  waypoint.time / ReplayManager.i.GetDuration() ;
+                float x = (float)t * Screen.width;
+                
+                GUI.color = Color.yellow;
+                Rect rect = new Rect(x, 2, 10, 10);
+                GUI.DrawTexture(rect, _timelinePointCircleTexture);
+
+                GUI.color = Color.white;
+            }
         }
     }
 }
