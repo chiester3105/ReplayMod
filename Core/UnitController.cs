@@ -383,11 +383,9 @@ namespace ReplayMod.Core
         {
             try
             {
-                Plugin.logger.LogWarning("Adding turret snapshot");
                 TurretSnapshot snapshot = TurretSnapshot.Create(e);
                 if (!TrySearchUnit(e.attachedUnitId, out var pid, out var unit))
                 {
-                    Plugin.logger.LogWarning("enqueue turret snapshot");
                     if (_queuedSnapshots.TryGetValue(e.attachedUnitId, out var value))
                     {
                         value.Add(snapshot);
@@ -435,7 +433,7 @@ namespace ReplayMod.Core
                 _turretSnapshots[turret] = new List<TurretSnapshot> { snapshot };
                 turret.enabled = false;
             }
-            Plugin.logger.LogWarning("Dequeue turret snapshot");
+            //Plugin.logger.LogWarning("Dequeue turret snapshot");
         }
         public void MoveTurrets(double time)
         {

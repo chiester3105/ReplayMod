@@ -4,7 +4,7 @@ using ReplayMod.Core;
 namespace ReplayMod.Patches
 {
     [HarmonyPatch(typeof(Building))]
-    public class BuildingPatches
+    public class BuildingPatch
     {
         [HarmonyPatch("UnitDisabled")]
         [HarmonyPrefix]

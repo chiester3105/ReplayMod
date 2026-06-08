@@ -4,8 +4,10 @@ using System.Linq;
 using System.Threading.Tasks;
 using Cysharp.Threading.Tasks;
 using NuclearOption.Networking;
+using ReplayMod.Camera;
 using ReplayMod.Data;
 using UnityEngine;
+using static HitValidator.FiringLog;
 
 namespace ReplayMod.Core
 {
@@ -17,15 +19,15 @@ namespace ReplayMod.Core
 
         public const double AircraftUpdateInterval = 0.05; // aircrafts and missiles actually
         public const double GroundVehicleUpdateInterval = 0.4; //grounds and ships
-        public const double BuildingUpdateInterval = 30; //lmao
-        public const double UpdateInputsInterval = 0.3;
+        public const double BuildingUpdateInterval = 60;
+        public const double UpdateInputsInterval = 0.5;
         public const double TurretsUpdateInterval = 1.5;
         public const int PlayerBoundedCapacity = 10000;
 
         private ModStates _currentState;
         private Recorder _recorder;
         private Player _player;
-        private UI _mainPanel;
+        private MainMenu _mainPanel;
         private VisualWaypoints _waypoints;
         public bool UseCaching { get; private set; } = false;
         public bool IgnorePilotsSpawn { get; private set; } = false;
@@ -35,6 +37,7 @@ namespace ReplayMod.Core
         private string _path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Replays");
 
         public Action onReset;
+       
         public void Configure()
         {
 
@@ -58,7 +61,7 @@ namespace ReplayMod.Core
                 i = this;
                 DontDestroyOnLoad(gameObject);
 
-                _mainPanel = gameObject.AddComponent<UI>();
+                _mainPanel = gameObject.AddComponent<MainMenu>();
                 _waypoints = gameObject.AddComponent<VisualWaypoints>();
                 onReset += _waypoints.Restore;
 
@@ -228,27 +231,22 @@ namespace ReplayMod.Core
             {
                 _mainPanel.Toggle();
             }
-            if (ConfigManager.CreateCameraWaypoint.Value.GetDown())
+           /* if (ConfigManager.CreateCameraWaypoint.Value.GetDown())
             {
-                CameraStateManager.i.GetCameraPosition(out var cam);
-
-                PositionSnapshot snapshot = new PositionSnapshot()
-                {
-                    position = cam.Position,
-                    rotation = cam.Rotation,
-                    time = GetCurrentVirtualTime()
-                };
-                _waypoints.AddWaypoint(snapshot);
-                _mainPanel.AddWaypoint(snapshot);
+                
+                
             }
             if (ConfigManager.DeleteLastCameraWaypoint.Value.GetDown())
             {
                 _waypoints.DeleteLast();
-                _mainPanel.DeleteLastWaypoint();
+                
             }
-
+           */
         }
         
+     
+        
+
         public bool ShouldContinue(uint id)
         {
             if (_player == null || _currentState != ModStates.Replay) return true;
@@ -328,11 +326,13 @@ namespace ReplayMod.Core
         public void StopCamFlight()
         {
             _waypoints.SetRenderActive(true);
+            
         }
         public void StartCamFlight()
         {
-            _player.StartCameraFlight(_waypoints.CameraWaypoints).Forget();
+            //_player.StartCameraFlight(_waypoints.CameraWaypoints).Forget();
             _waypoints.SetRenderActive(false);
+            
         }
     }
 

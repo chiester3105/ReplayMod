@@ -6,8 +6,9 @@ using ReplayMod.Patches;
 using Steamworks;
 using UnityEngine;
 
-namespace ReplayMod
+namespace ReplayMod.Camera
 {
+    [Obsolete]
     public class VisualWaypoints : MonoBehaviour
     {
         private void Awake()
@@ -16,8 +17,8 @@ namespace ReplayMod
             //Even with transform setparent for LineRenderer it teleports after
             //datum origin shift. Calling update line fixes that.
         }
-        public List<PositionSnapshot> CameraWaypoints = new();
-        private Dictionary<PositionSnapshot, GameObject> _3Dwaypoints = new();
+        public List<PositionSnapshot> CameraWaypoints = [];
+        private Dictionary<PositionSnapshot, GameObject> _3Dwaypoints = [];
         private LineRenderer _currentLine;
         public bool RenderEnabled { get; private set; } = true;
 
@@ -100,7 +101,7 @@ namespace ReplayMod
 
         private LineRenderer CreateLine()
         {
-            GameObject line = new GameObject();
+            GameObject line = new();
             LineRenderer lr = line.AddComponent<LineRenderer>();
             lr.startWidth = 0.2f;
             lr.endWidth = 0.2f;

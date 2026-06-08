@@ -36,16 +36,16 @@ namespace ReplayMod.Core
         {
             UnitRegistryPatch.onRegisterUnit += HandleUnitRegister;
             UnitRegistryPatch.onUnregisterUnit += HandleUnitUnregister;
-            UnitPatche.onPartDetached += HandlePartDetach;
-            AircraftPatches.onSetGear += HandleSetGear;
+            UnitPatch.onPartDetached += HandlePartDetach;
+            AircraftPatch.onSetGear += HandleSetGear;
             MissilePatch.onDetonate += HandleMissileDetonate;
         }
         private  void Unsubscribe()
         {
             UnitRegistryPatch.onRegisterUnit -= HandleUnitRegister;
             UnitRegistryPatch.onUnregisterUnit -= HandleUnitUnregister;
-            UnitPatche.onPartDetached -= HandlePartDetach;
-            AircraftPatches.onSetGear -= HandleSetGear;
+            UnitPatch.onPartDetached -= HandlePartDetach;
+            AircraftPatch.onSetGear -= HandleSetGear;
             MissilePatch.onDetonate -= HandleMissileDetonate;
         }
 
@@ -247,7 +247,6 @@ namespace ReplayMod.Core
                             writer.elevationAngle = turret.elevationAngle;
                             writer.traverseAngle = turret.traverseAngle;
                             writer.weaponStationIdx = turret.currentWeaponStation.Number;
-                            Plugin.logger.LogInfo("Adding turret snapshot");
                             _eventQueue.Add(writer);
                         }
                     }

@@ -5,7 +5,7 @@ using ReplayMod.Core;
 namespace ReplayMod.Patches
 {
     [HarmonyPatch(typeof(Aircraft))]
-    public class AircraftPatches
+    public class AircraftPatch
     {
         [HarmonyPatch("StartEjectionSequence")]
         [HarmonyPrefix]

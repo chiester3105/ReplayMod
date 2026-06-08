@@ -1,5 +1,6 @@
 ﻿using BepInEx.Configuration;
 using UnityEngine;
+using UnityEngine.Assertions.Must;
 
 namespace ReplayMod
 {
@@ -11,6 +12,8 @@ namespace ReplayMod
         public static ConfigEntry<KeyboardShortcut> CreateCameraWaypoint { get; set; }
         public static ConfigEntry<KeyboardShortcut> DeleteLastCameraWaypoint { get; set; }
         
+        public static ConfigEntry<KeyboardShortcut> MirrorControlPoint { get; set; }
+        public static ConfigEntry<KeyboardShortcut> DeselectWaypoint { get; set; }
         public static void Configure(ConfigFile config)
         {
             ToggleMenu = config.Bind("Hotkeys", "Toggle menu", new KeyboardShortcut(UnityEngine.KeyCode.F5));
@@ -18,6 +21,10 @@ namespace ReplayMod
             TogglePause = config.Bind("Hotkeys", "Toggle pause", new KeyboardShortcut(UnityEngine.KeyCode.Space));
             CreateCameraWaypoint = config.Bind("Hotkeys", "Add camera waypoint", new KeyboardShortcut(UnityEngine.KeyCode.F6));
             DeleteLastCameraWaypoint = config.Bind("Hotkeys", "Delete last camera waypoint", new KeyboardShortcut(UnityEngine.KeyCode.F7));
+
+            MirrorControlPoint = config.Bind("Hotkeys", "Mirror control point", new KeyboardShortcut(UnityEngine.KeyCode.L));
+            DeselectWaypoint = config.Bind("Hotkeys", "Deselect point", new KeyboardShortcut(UnityEngine.KeyCode.Backspace));
+
         }
 
         

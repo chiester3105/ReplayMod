@@ -7,7 +7,7 @@ using UnityEngine;
 namespace ReplayMod.Patches
 {
     [HarmonyPatch(typeof(Unit))]
-    public class UnitPatche
+    public class UnitPatch
     {
         public static Action<Unit, byte> onPartDetached;
         [HarmonyPatch("DetachPart")]

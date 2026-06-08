@@ -1,13 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using ReplayMod.Camera;
 using ReplayMod.Core;
 using ReplayMod.Data;
 using UnityEngine;
 
 namespace ReplayMod
 {
-    public class UI : MonoBehaviour
+    public class MainMenu : MonoBehaviour
     {
         private Texture2D _statusCircleTexture;
         private Texture2D _timelinePointCircleTexture;
@@ -46,7 +47,7 @@ namespace ReplayMod
 
         }
 
-        private Rect windowRect = new Rect(40, 40, 310, 500);
+        private Rect windowRect = new(40, 40, 310, 500);
         private void OnGUI()
         {
             if (_enabled)
@@ -82,7 +83,7 @@ namespace ReplayMod
                 }
                 if (GUI.Button(new Rect(5, 430, 95, 25), "Cam flight"))
                 {
-                    ReplayManager.i.StartCamFlight();
+                    CameraManager.i.StartCamFlight();
                 }
                 string text2 = TimeScaleManager.Scale == 0 ? "Playback" : "Pause";
                 if (GUI.Button(new Rect(110, 460, 95, 25), text2))
@@ -137,8 +138,8 @@ namespace ReplayMod
             if (ReplayManager.i.GetState() != ModStates.Record) return;
             float alpha = 0.3f + 0.7f * (Mathf.Sin(Time.time * _blinkSpeed) * 0.5f + 0.5f);
 
-            GUI.color = new Color(1f, 0f, 0f, alpha);
-            Rect rect = new Rect(10, 10, 20, 20);
+            GUI.color = new(1f, 0f, 0f, alpha);
+            Rect rect = new(10, 10, 20, 20);
             GUI.DrawTexture(rect, _statusCircleTexture);
 
             GUI.color = Color.white; 
@@ -200,30 +201,21 @@ namespace ReplayMod
             } 
         }
 
-        private List<PositionSnapshot> _waypoints = new();
-        public void DeleteLastWaypoint()
-        {
-            if (_waypoints.Count > 0)
-            {
-                _waypoints.RemoveAt(_waypoints.Count - 1);
-            }
-        }
-        public void AddWaypoint(PositionSnapshot snapshot)
-        {
-            if (_timelinePointCircleTexture == null) CreateCircleTexture(7, out _timelinePointCircleTexture);
-
-            _waypoints.Add(snapshot);
-        }
+        
 
         private void DrawTimelineMarkers()
         {
-            foreach (var waypoint in _waypoints)
+            if (_timelinePointCircleTexture == null)
+                CreateCircleTexture(7, out _timelinePointCircleTexture);
+
+            var waypoints = CameraManager.i.GetWaypoints();
+            foreach (var waypoint in waypoints)
             {
-                var t =  waypoint.time / ReplayManager.i.GetDuration() ;
+                var t =  waypoint.Time / ReplayManager.i.GetDuration() ;
                 float x = (float)t * Screen.width;
                 
                 GUI.color = Color.yellow;
-                Rect rect = new Rect(x, 2, 10, 10);
+                Rect rect = new(x, 2, 10, 10);
                 GUI.DrawTexture(rect, _timelinePointCircleTexture);
 
                 GUI.color = Color.white;

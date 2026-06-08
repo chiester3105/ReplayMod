@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Cysharp.Threading.Tasks;
 using System.Collections.Concurrent;
 using ReplayMod.Core;
+using ReplayMod.Camera;
 
 namespace ReplayMod
 {
@@ -13,7 +14,7 @@ namespace ReplayMod
     {
         public const string GUID = "com.chiester3105.replayMod";
         public const string Name = "ReplayMod";
-        public const string Version = "1.0.0";
+        public const string Version = "1.0.1";
     }
     
     [BepInPlugin(PluginInfo.GUID, PluginInfo.Name, PluginInfo.Version)]
@@ -34,6 +35,7 @@ namespace ReplayMod
         {
             try
             {
+                gameObject.AddComponent<CameraManager>();
                 gameObject.AddComponent<ReplayManager>();
                 DontDestroyOnLoad(gameObject);
 

@@ -23,7 +23,6 @@ namespace ReplayMod.Core
         private long _eventCount;
         private long _ticks;
         private long _dataStartOffset;
-        private long _indexStartOffset;
 
         private UnitController _unitCotroller;
         public double currentVirtualTime { get; private set; } = 0;
@@ -38,7 +37,6 @@ namespace ReplayMod.Core
         private bool _onReset = false;
         private bool _loaded = false;
 
-        
         private void Awake()
         {
             DontDestroyOnLoad(this);
@@ -167,8 +165,6 @@ namespace ReplayMod.Core
             }
         }
         
-        // with 10k events in buffer it costs about 80kb ram, dont think i should use
-        //blocking collection with bounded capacity
         private ConcurrentDictionary<uint, List<PositionSnapshot>> _unitSnapshots = new();
         /// <summary>
         /// Reads events from file. ReadOffset points on file offset.
@@ -490,9 +486,11 @@ namespace ReplayMod.Core
                 }
                 else if (e is DespawnEvent de)
                 {
+                    var spawn = spawns[de.unitId];
                     spawns.Remove(de.unitId);
                     moves.Remove(de.unitId);
                     ReplayEventFactory.Return(e);
+                    ReplayEventFactory.Return(spawn);
                 }
                 else if (e is UpdatePositionEvent upe)
                 {
@@ -538,17 +536,13 @@ namespace ReplayMod.Core
         private int awaitFrames = 0;
         private ConcurrentQueue<IReplayEvent> _inputsBuffer = new();
         private ConcurrentQueue<IReplayEvent> _turretsBuffer = new();
-        private void FixedUpdate()
-        {
-            
-        }
         private List<PositionSnapshot> _cameraWaypoints = new();
         private bool _cameraFlightEnabled = false;
         private void Update()
-        {
-            
-            if (awaitFrames-- > 0)
+        { 
+            if (awaitFrames > 0)
             {
+                awaitFrames--;
                 return;
             }
             int iterations = 0;
@@ -567,7 +561,6 @@ namespace ReplayMod.Core
 
             while (_buffer.TryTakeIfReady(currentVirtualTime, out var reader))
             {
-                //Plugin.logger.LogInfo($"Event taken: {reader.EventType}");
                 if (reader is UpdatePositionEvent move)
                 {
                     var id = move.unitId;
