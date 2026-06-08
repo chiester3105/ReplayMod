@@ -265,11 +265,11 @@ namespace ReplayMod.Core
             }).ToArray();
         }
 
-        public void TimelineJump(double time)
+        public async UniTask TimelineJump(double time)
         {
             if(_player != null && _player.enabled == true && _currentState == ModStates.Replay)
             {
-                _player.TimelineJump(time).Forget();
+                await _player.TimelineJump(time);
             }
         }
 

@@ -90,5 +90,10 @@ namespace ReplayMod.Camera
                 }
             }
         }
+
+        public void SetRenderActive(bool render)
+        {
+            sphere.SetActive(render);
+        }
     }
 }

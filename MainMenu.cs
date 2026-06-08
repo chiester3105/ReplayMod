@@ -83,7 +83,7 @@ namespace ReplayMod
                 }
                 if (GUI.Button(new Rect(5, 430, 95, 25), "Cam flight"))
                 {
-                    CameraManager.i.StartCamFlight();
+                    CameraManager.i.ToggleFlight();
                 }
                 string text2 = TimeScaleManager.Scale == 0 ? "Playback" : "Pause";
                 if (GUI.Button(new Rect(110, 460, 95, 25), text2))

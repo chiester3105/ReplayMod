@@ -218,13 +218,10 @@ namespace ReplayMod.Camera
         }
 
         private bool _isMoving = false;
-        public void SetMoveCamera(bool moveCamera)
-        {
-            _isMoving = moveCamera;
-        }
+        
         private void MoveCamera(double time)
         {
-            if (!_isMoving) return;
+            if (!_isMoving || CameraStateManager.i.mainCamera == null) return;
             foreach(var segment in _segmentsData.Keys)
             {
                 if(segment.TryInterpolate(time, out var position, out var rotation))
@@ -237,6 +234,7 @@ namespace ReplayMod.Camera
                     CameraStateManager.i.SetCameraPosition(posRot);
                 }
             }
+            if (time > _waypoints[_waypoints.Count - 1].Time) StopCamFlight();
         }
 
         public double GetStartingTime()
@@ -246,14 +244,27 @@ namespace ReplayMod.Camera
             else return 0;
         }
 
-        public void StartCamFlight()
+        public void ToggleFlight()
         {
-            ReplayManager.i.TimelineJump(GetStartingTime());
-            SetMoveCamera(true);
+            _isMoving = !_isMoving;
+            if( _isMoving ) StartCamFlight().Forget();
+            else StopCamFlight();
+        }
+
+        public async UniTask StartCamFlight()
+        {
+            await ReplayManager.i.TimelineJump(GetStartingTime());
+            foreach(var segment in _segmentsData.Keys)
+            {
+                segment.SetRenderActive(false);
+            }
         }
         public void StopCamFlight()
         {
-            SetMoveCamera(false);
+            foreach (var segment in _segmentsData.Keys)
+            {
+                segment.SetRenderActive(true);
+            }
         }
         public List<CameraWaypoint> GetWaypoints()
         {

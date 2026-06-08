@@ -189,5 +189,18 @@ namespace ReplayMod.Camera
             UnityEngine.Object.Destroy(curveVisualizer);
             CameraManager.i.RemoveSpline(this);
         }
+
+        public void SetRenderActive(bool render)
+        {
+            Plugin.logger.LogInfo($"segment setrenderactive {render}");
+            curveVisualizer.gameObject.SetActive(render);
+            p0p1_line.gameObject.SetActive(render);
+            p2p3_line.gameObject.SetActive(render);
+
+            p0.SetRenderActive(render);
+            p1.SetRenderActive(render);
+            p2.SetRenderActive(render);
+            p3.SetRenderActive(render);
+        }
     }
 }

@@ -14,7 +14,7 @@ namespace ReplayMod
     {
         public const string GUID = "com.chiester3105.replayMod";
         public const string Name = "ReplayMod";
-        public const string Version = "1.0.1";
+        public const string Version = "1.1.0";
     }
     
     [BepInPlugin(PluginInfo.GUID, PluginInfo.Name, PluginInfo.Version)]
