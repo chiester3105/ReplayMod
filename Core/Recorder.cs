@@ -9,6 +9,7 @@ using NuclearOption.SceneLoading;
 using ReplayMod.Events;
 using ReplayMod.Events.ConcreteEvents;
 using ReplayMod.Patches;
+using ReplayMod.Patches.WeaponPatches;
 using UnityEngine;
 
 namespace ReplayMod.Core
@@ -39,6 +40,7 @@ namespace ReplayMod.Core
             UnitPatch.onPartDetached += HandlePartDetach;
             AircraftPatch.onSetGear += HandleSetGear;
             MissilePatch.onDetonate += HandleMissileDetonate;
+            WeaponStationPatch.onWeaponStationFire += HandleWeaponStationFire;
         }
         private  void Unsubscribe()
         {
@@ -47,6 +49,7 @@ namespace ReplayMod.Core
             UnitPatch.onPartDetached -= HandlePartDetach;
             AircraftPatch.onSetGear -= HandleSetGear;
             MissilePatch.onDetonate -= HandleMissileDetonate;
+            WeaponStationPatch.onWeaponStationFire -= HandleWeaponStationFire;
         }
 
         private Dictionary<PersistentID, Unit> _unitsOnTrack = new();
@@ -165,6 +168,8 @@ namespace ReplayMod.Core
         }
         private async UniTask HandleWeaponStationAsync(Unit unit)
         {
+            //await weapon station register, bc it is null even
+            //after unit been registered
             await UniTask.WhenAny
                 (UniTask.WaitUntil(() => unit.weaponStations != null),
                 UniTask.WaitForSeconds(1));
@@ -182,6 +187,21 @@ namespace ReplayMod.Core
                 }
             }
         }
+        
+
+        private void HandleWeaponStationFire(WeaponStation station, Unit owner, Unit target)
+        {
+            Plugin.DebugLog($"Writing fire event");
+            var writer = ReplayEventFactory.GetEvent<WeaponFireEvent>();
+            writer.Time = _virtualTime;
+            writer.unitId = owner.persistentID.Id;
+            writer.stationIdx = station.Number;
+            writer.weaponIdx = (byte)station.weaponIndex;
+            //writer.targetsCount 
+            _eventQueue.Add(writer);
+            _eventCount++;
+        }
+
         private Dictionary<PersistentID, double> _lastPositionUpdateTime = new();
         private Dictionary<PersistentID, double> _lastInputUpdateTime = new();
         private Dictionary<PersistentID, double> _lastTurretUpdateTime = new();

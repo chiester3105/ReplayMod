@@ -22,7 +22,7 @@ namespace ReplayMod.Core
         public const double BuildingUpdateInterval = 60;
         public const double UpdateInputsInterval = 0.5;
         public const double TurretsUpdateInterval = 1.5;
-        public const int PlayerBoundedCapacity = 10000;
+        public const int PlayerBoundedCapacity = 20000;
 
         private ModStates _currentState;
         private Recorder _recorder;

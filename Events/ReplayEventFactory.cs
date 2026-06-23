@@ -25,6 +25,7 @@ namespace ReplayMod.Events
                 EventType.PartDetach => GetEvent<DetachPartEvent>(),
                 EventType.ToggleGear => GetEvent<SetGearEvent>(),
                 EventType.UpdateTurret => GetEvent<UpdateTurretTransform>(),
+                EventType.WeaponFire => GetEvent<WeaponFireEvent>(),
                 _ => throw new ArgumentOutOfRangeException(nameof(type), type, null)
             };
         }
@@ -47,6 +48,7 @@ namespace ReplayMod.Events
                 case DetachPartEvent e: ReplayEventPool<DetachPartEvent>.Return(e); break;
                 case SetGearEvent e: ReplayEventPool<SetGearEvent>.Return(e); break;
                 case UpdateTurretTransform e: ReplayEventPool<UpdateTurretTransform>.Return(e); break;
+                case WeaponFireEvent e: ReplayEventPool<WeaponFireEvent>.Return(e); break;
                 default: throw new ArgumentOutOfRangeException(nameof(ev), ev.GetType().Name);
             }
         }

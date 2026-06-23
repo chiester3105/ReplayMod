@@ -236,6 +236,9 @@ namespace ReplayMod.Core
         private List<WorldSnapshot> _worldSnapshots = new List<WorldSnapshot>(); 
         
         // if user started replay withouth cache option and enabled it in process
+        /// <summary>
+        /// Builds timeline cache
+        /// </summary>
         public void BuildCache()
         {
             _cachingCts?.Cancel();
@@ -532,10 +535,8 @@ namespace ReplayMod.Core
         }
         private bool _pause = false;
         private Queue<IReplayEvent> _restoreBuffer = new();
-        private const int MAX_RESTORE_ACTIONS = 10;
+        private const int MAX_RESTORE_ACTIONS = 15;
         private int awaitFrames = 0;
-        private ConcurrentQueue<IReplayEvent> _inputsBuffer = new();
-        private ConcurrentQueue<IReplayEvent> _turretsBuffer = new();
         private List<PositionSnapshot> _cameraWaypoints = new();
         private bool _cameraFlightEnabled = false;
         private void Update()
@@ -561,6 +562,8 @@ namespace ReplayMod.Core
 
             while (_buffer.TryTakeIfReady(currentVirtualTime, out var reader))
             {
+                if (reader.EventType != EventType.Move && reader.EventType != EventType.UpdateTurret)
+                    Plugin.DebugLog($"Reading event: {reader.EventType}");
                 if (reader is UpdatePositionEvent move)
                 {
                     var id = move.unitId;
@@ -607,8 +610,7 @@ namespace ReplayMod.Core
                 else
                     MoveCamera();
             }
-
-            
+           
             currentVirtualTime += Time.deltaTime;
         }
 
@@ -636,14 +638,6 @@ namespace ReplayMod.Core
         {
             if (_unitCotroller == null) return true;
             return _unitCotroller.ShouldContinuePatchedMethod(id);
-        }
-
-        public async UniTask StartCameraFlight(List<PositionSnapshot> snapshots)
-        {
-           if (snapshots.Count == 0) return;
-           _cameraWaypoints = new (snapshots);
-            await TimelineJump(snapshots[0].time);
-            _cameraFlightEnabled = true;
         }
 
         private void MoveCamera()
@@ -687,7 +681,10 @@ namespace ReplayMod.Core
 
         private class BoundedEventBuffer
         {
+            //separated buffers
             private ConcurrentQueue<IReplayEvent> _queue = new();
+            private ConcurrentQueue<IReplayEvent> _movementBuffer = new();
+            
             private int _capacity;
             private SemaphoreSlim _freeSpace;
             public int Count { get { return _queue.Count; } }
@@ -708,7 +705,11 @@ namespace ReplayMod.Core
             public void Add(IReplayEvent e, CancellationToken token)
             {
                 _freeSpace.Wait(token);
-                _queue.Enqueue(e);
+                if (e.EventType == EventType.Move ||
+                        e.EventType == EventType.UpdateTurret)
+                    _movementBuffer.Enqueue(e);
+                else
+                    _queue.Enqueue(e);
             }
             /// <summary>
             /// If an element is extracted from the buffer, returns true, gives IReplayEvent, and frees up space in the buffer.
@@ -720,24 +721,24 @@ namespace ReplayMod.Core
             public bool TryTakeIfReady(double time, out IReplayEvent e)
             {
                 e = null;
-                if(_queue.TryPeek(out var timeCheck))
+                if(_movementBuffer.TryPeek(out var check))
                 {
-                    if ((timeCheck.EventType == EventType.Move ||
-                        timeCheck.EventType == EventType.UpdateTurret)
-                        && time >= timeCheck.Time - 4)
+                    if(check.EventType == EventType.Move ||
+                        check.EventType == EventType.UpdateTurret
+                        && time >= check.Time - 4)
+                    {
+                        _movementBuffer.TryDequeue(out e);
+                        _freeSpace.Release();
+                        return true;
+                    }
+                }
+                if (_queue.TryPeek(out var timeCheck))
+                {
+                    if (time >= timeCheck.Time)
                     {
                         _queue.TryDequeue(out e);
                         _freeSpace.Release();
                         return true;
-                    }
-                    else
-                    {
-                        if (time >= timeCheck.Time)
-                        {
-                            _queue.TryDequeue(out e);
-                            _freeSpace.Release();
-                            return true;
-                        }
                     }
                 }
                 return false;

@@ -22,7 +22,7 @@ namespace ReplayMod.Camera
         private void Draw(int id)
         {
             DrawPanel();
-            if(CameraManager.i.ControlPointSelected())
+            if(CameraManager.i.IsControlPointSelected())
             {
                 DrawTimeEdit();
             }

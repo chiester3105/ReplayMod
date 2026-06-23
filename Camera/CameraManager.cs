@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics.Eventing.Reader;
 using System.Linq;
+using System.Security.Policy;
 using System.Text;
 using System.Threading.Tasks;
 using Cysharp.Threading.Tasks;
@@ -310,10 +311,13 @@ namespace ReplayMod.Camera
                 _pointOnEdit.Time = newTime;
             }
         }
-        public bool ControlPointSelected()
+        public bool IsControlPointSelected()
         {
             return _pointOnEdit != null && _pointOnEdit.controlPoint;
         }
-
+        public bool IsJointPointSelected()
+        {
+            return _pointOnEdit != null && !_pointOnEdit.controlPoint;
+        }
     }
 }

@@ -10,6 +10,7 @@
         ControlInputs,
         PartDetach,
         ToggleGear,
-        UpdateTurret
+        UpdateTurret,
+        WeaponFire
     }
 }

@@ -25,5 +25,21 @@ namespace ReplayMod.Patches
         {
             onSetGear?.Invoke(__instance, deployed);
         }
+
+
+        [HarmonyPatch("CmdLaunchMissile")]
+        [HarmonyPrefix]
+        public static bool CmdLaunchMissilePatch(byte stationIndex, Unit target, GlobalPosition aimpoint)
+        {
+            return ReplayManager.i.GetState() != ModStates.Replay;
+        }
+
+        [HarmonyPatch("RpcLaunchMissile")]
+        [HarmonyPrefix]
+        public static bool RpcLaunchMissilePatch(byte stationIndex, Unit target, GlobalPosition aimpoint)
+        {
+            
+            return ReplayManager.i.GetState() != ModStates.Replay;
+        }
     }
 }

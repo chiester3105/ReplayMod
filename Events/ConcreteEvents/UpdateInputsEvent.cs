@@ -27,12 +27,13 @@ namespace ReplayMod.Events.ConcreteEvents
         {
             if(worker is UnitController controller)
             {
-                controller.ApplyInputs(this);
+                //controller.ApplyInputs(this);
             }
         }
 
         public void Read(BinaryReader br)
         {
+            Time = br.ReadDouble();
             id = br.ReadUInt32();
             pitch = br.ReadSingle();
             roll = br.ReadSingle();
@@ -44,11 +45,13 @@ namespace ReplayMod.Events.ConcreteEvents
 
         public void Reset()
         {
-            
+            Time = 0;
+
         }
 
         public void Write(BinaryWriter bw)
         {
+            bw.Write(Time);
             bw.Write(id);
             bw.Write(pitch);
             bw.Write(roll);

@@ -213,8 +213,12 @@ namespace ReplayMod.Core
             Vector3 vel = Vector3.Lerp(prev.velocity, next.velocity, t);
             unit.transform.SetPositionAndRotation(pos, rot);
             if(unit.rb != null && !unit.rb.isKinematic) unit.rb.velocity = vel;
-            
 
+            //if (unit is Aircraft)Plugin.logger.LogInfo($"Unit name: {unit.unitName}, Snapshots count: {positions.Count}, idx {idx}");
+            if (idx >= 50)
+            {
+                positions.RemoveRange(0, idx-1);
+            }
         }
 
         private void SetUnitTransform(Unit unit, PositionSnapshot snapshot)
@@ -483,6 +487,39 @@ namespace ReplayMod.Core
             //Plugin.logger.LogInfo($"Update turret tranform for turret {turret}, attached {turret.attachedUnit}\n" +
             //   $"entered elevation and traverse: {elevation}; {traverse}|\n" +
             //    $"current: {turret.elevationAngle}; {turret.traverseAngle}");
+        }
+
+        public void ExecuteFire(WeaponFireEvent e)
+        {
+            if (!TrySearchUnit(e.unitId, out var pid, out var unit)) return;
+            if (e.stationIdx > unit.weaponStations.Count) return;
+            WeaponStation station = unit.weaponStations[e.stationIdx];
+
+            if (station.Weapons == null || e.weaponIdx >= station.Weapons.Count) return;
+
+            var weapon = station.Weapons[e.weaponIdx];
+            if (weapon == null) return;
+
+            if (weapon is MountedMissile missile)
+            {
+                missile.RemoveFromHardpoint();
+                missile.fired = true;
+                missile.gameObject.SetActive(false);
+            }
+            else if (weapon is Gun gun)
+            {
+                gun.ammo--;
+                if (gun.ammo <= 0)
+                    gun.gameObject.SetActive(false);
+                gun.SpawnBullet(0);
+            }
+            else
+            {
+                weapon.gameObject.SetActive(false);
+            }
+
+            station.Weapons.RemoveAt(e.weaponIdx);
+            station.AccountAmmo();
         }
     }
 }

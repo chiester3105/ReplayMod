@@ -3,11 +3,11 @@ using ReplayMod.Core;
 
 namespace ReplayMod.Patches
 {
-    [HarmonyPatch(typeof(Scenery))]
+    //[HarmonyPatch(typeof(Scenery))]
     public class SceneryPatch
     {
-        [HarmonyPatch("Collapse")]
-        [HarmonyPrefix]
+        //[HarmonyPatch("Collapse")]
+        //[HarmonyPrefix]
         public static bool CollapsePatch(Scenery __instance)
         {
             return ReplayManager.i.ShouldContinue(__instance.persistentID.Id);

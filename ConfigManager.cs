@@ -14,6 +14,8 @@ namespace ReplayMod
         
         public static ConfigEntry<KeyboardShortcut> MirrorControlPoint { get; set; }
         public static ConfigEntry<KeyboardShortcut> DeselectWaypoint { get; set; }
+
+        public static ConfigEntry<bool> EnableDebugLogs { get; set; }
         public static void Configure(ConfigFile config)
         {
             ToggleMenu = config.Bind("Hotkeys", "Toggle menu", new KeyboardShortcut(UnityEngine.KeyCode.F5));
@@ -25,6 +27,7 @@ namespace ReplayMod
             MirrorControlPoint = config.Bind("Hotkeys", "Mirror control point", new KeyboardShortcut(UnityEngine.KeyCode.L));
             DeselectWaypoint = config.Bind("Hotkeys", "Deselect point", new KeyboardShortcut(UnityEngine.KeyCode.Backspace));
 
+            EnableDebugLogs = config.Bind("Debug", "Enable logs", false);
         }
 
         

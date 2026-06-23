@@ -12,6 +12,7 @@ namespace ReplayMod.Events.ConcreteEvents
         public bool deployed;
         public void Execute(object worker = null)
         {
+            Plugin.DebugLog($"Executing setgear");
             if (worker is UnitController u) u.SetGear(this);
         }
 

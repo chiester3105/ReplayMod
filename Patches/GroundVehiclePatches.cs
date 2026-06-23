@@ -3,7 +3,7 @@ using ReplayMod.Core;
 using HarmonyLib;
 namespace ReplayMod.Patches
 {
-    [HarmonyPatch(typeof(GroundVehicle))]
+    //[HarmonyPatch(typeof(GroundVehicle))]
     public class GroundVehiclePatches
     {
         //[HarmonyPatch("Awake")]
@@ -26,14 +26,14 @@ namespace ReplayMod.Patches
             return !(ReplayManager.i.GetState() == ModStates.Replay);
         }
 
-        [HarmonyPatch("UnitDisabled")]
-        [HarmonyPrefix]
+        //[HarmonyPatch("UnitDisabled")]
+        //[HarmonyPrefix]
         public static bool UnitDisabledPrefix(GroundVehicle __instance, bool oldState, bool newState)
         {
             return ReplayManager.i.ShouldContinue(__instance.persistentID.Id);
         }
-        [HarmonyPatch("WreckAndRemove")]
-        [HarmonyPrefix]
+        //[HarmonyPatch("WreckAndRemove")]
+        //[HarmonyPrefix]
         public static bool WreckAngRemovePatch(GroundVehicle __instance)
         {
             return ReplayManager.i.ShouldContinue(__instance.persistentID.Id);

@@ -62,11 +62,32 @@ namespace ReplayMod
         private void Draw(int windowId)
         {
             DrawPanel();
-            DrawScrollMenu();
-            DrawButtons();
+            if (CameraManager.i.IsControlPointSelected())
+            {
+
+            }
+            else if (CameraManager.i.IsJointPointSelected())
+            {
+
+            }
+            else
+            {
+                DrawScrollMenu();
+                DrawButtons();
+            }
             GUI.DragWindow();
         }
 
+        public void DrawEditControlMenu()
+        {
+
+        }
+        public void DrawJointEditMenu()
+        {
+            string text = $"Time: {CameraManager.i.GetWaypointTime().ToString()}";
+            GUI.Label(new Rect(3, 10, 100, 20), text);
+
+        }
         private void DrawPanel()
         {
             GUI.color = Color.yellow;

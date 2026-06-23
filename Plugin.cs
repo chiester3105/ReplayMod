@@ -7,6 +7,7 @@ using Cysharp.Threading.Tasks;
 using System.Collections.Concurrent;
 using ReplayMod.Core;
 using ReplayMod.Camera;
+using UnityEngine;
 
 namespace ReplayMod
 {
@@ -21,6 +22,8 @@ namespace ReplayMod
     
     public class Plugin : BaseUnityPlugin
     {
+        
+
         public static ManualLogSource logger;
         public static Plugin Instance { get; private set; }
         public static ReplayManager ReplayManager { get; private set; }
@@ -33,6 +36,7 @@ namespace ReplayMod
 
         public void Awake()
         {
+            
             try
             {
                 gameObject.AddComponent<CameraManager>();
@@ -139,6 +143,12 @@ namespace ReplayMod
             Major = byte.Parse(args[0]);
             Minor = byte.Parse(args[1]);
             Patch = byte.Parse(args[2]);
+            
+        }
+        public static void DebugLog(string message)
+        {
+            if(ConfigManager.EnableDebugLogs.Value)
+                logger.LogInfo($"[Debug] {message}");
         }
 
     }

@@ -36,7 +36,7 @@ namespace ReplayMod.Events.ConcreteEvents
                 return;
             }
 
-            //Plugin.logger.LogInfo($"Executing spawn: {unitId} {jsonKey}");
+            Plugin.DebugLog($"Executing spawn: {unitId} {jsonKey}");
             controller.SpawnUnit(this);
             //Plugin.logger.LogInfo($"Spawn executed: {unitId} {jsonKey}");
             
@@ -139,13 +139,18 @@ namespace ReplayMod.Events.ConcreteEvents
 
         public void Reset()
         {
-            unitId = default;
+            unitId = 0;
             pos = default;
             rotation = default;
             jsonKey = null;
             factionName = null;
+            startingVelocity = default;
+            ownerId = 0;
+            isAircraft = false;
+            liveryType = default;
+            liveryId = 0;
+            liveryIndex = 0;
             weapons = null;
-            //ReplayEventFactory.Return(this);
         }
 
         public void CopyFromSnapshot(SpawnSnapshot snapshot)
