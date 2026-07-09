@@ -11,6 +11,7 @@ using NuclearOption.SceneLoading;
 using ReplayMod.Data;
 using ReplayMod.Events;
 using ReplayMod.Events.ConcreteEvents;
+using ReplayMod.Misc;
 using UnityEngine;
 using EventType = ReplayMod.Events.EventType;
 namespace ReplayMod.Core
@@ -20,7 +21,7 @@ namespace ReplayMod.Core
         private string _path;
         private MapKey _key;
         public double replayDuration { get; private set; }
-        private long _eventCount;
+        private long _eventsCount;
         private long _ticks;
         private long _dataStartOffset;
 
@@ -71,9 +72,9 @@ namespace ReplayMod.Core
             }
             await ResetWorld();
             TimeScaleManager.Scale = 0;
-            Plugin.logger.LogInfo("world reset, awaiting afterload");
+            Plugin.DebugLog("world reset, awaiting afterload");
             await AfterLoad();
-            Plugin.logger.LogInfo("start playing finished");
+            Plugin.DebugLog("start playing finished");
             enabled = true;
         }
         
@@ -94,7 +95,7 @@ namespace ReplayMod.Core
                 _ = Task.Run(() => BuildCache(_cachingCts.Token)); // i dont need to wait it, fire and forget
             }
 
-            Plugin.logger.LogInfo("starting afterload");
+            Plugin.DebugLog("starting afterload");
             _producerTask = Task.Run(() => ProducerLoop(_producerCts.Token, _dataStartOffset));
             await Task.Run(() => BuildIndex()); // await bc its neccessary for timeline jumps
         }
@@ -122,6 +123,12 @@ namespace ReplayMod.Core
                 byte Patch = br.ReadByte();
                 //ill add version compatability check later
 
+                if(Major != Plugin.Major)
+                {
+                    Plugin.logger.LogError("Version mismatch, aborting file read");
+                    return;
+                }
+
                 MapKey.KeyType keyType = (MapKey.KeyType)br.ReadByte();
                 string path = br.ReadString();
                 _key = new MapKey(keyType, path);
@@ -135,7 +142,7 @@ namespace ReplayMod.Core
                 br.ReadByte();
 
                 replayDuration = br.ReadDouble();
-                _eventCount = br.ReadInt64();
+                _eventsCount = br.ReadInt64();
                 //_indexStartOffset = br.ReadInt64();
 
                 ushort usedUnits = br.ReadUInt16();
@@ -564,6 +571,8 @@ namespace ReplayMod.Core
             {
                 if (reader.EventType != EventType.Move && reader.EventType != EventType.UpdateTurret)
                     Plugin.DebugLog($"Reading event: {reader.EventType}");
+
+                //todo: move this block to unit controller + switch to linked list
                 if (reader is UpdatePositionEvent move)
                 {
                     var id = move.unitId;
@@ -596,8 +605,8 @@ namespace ReplayMod.Core
                 _unitCotroller.MoveUnit(kvp.Key, kvp.Value, currentVirtualTime); ;
             }
 
-            _unitCotroller.MoveTurrets(currentVirtualTime);
-            if (currentVirtualTime >= replayDuration) ForcePause();
+            _unitCotroller.Update(currentVirtualTime);
+            if (currentVirtualTime >= replayDuration - 0.01f) ForcePause();
 
             if (_cameraFlightEnabled)
             {
@@ -683,7 +692,7 @@ namespace ReplayMod.Core
         {
             //separated buffers
             private ConcurrentQueue<IReplayEvent> _queue = new();
-            private ConcurrentQueue<IReplayEvent> _movementBuffer = new();
+            private ConcurrentQueue<IReplayEvent> _interpolationBuffer = new();
             
             private int _capacity;
             private SemaphoreSlim _freeSpace;
@@ -706,8 +715,9 @@ namespace ReplayMod.Core
             {
                 _freeSpace.Wait(token);
                 if (e.EventType == EventType.Move ||
-                        e.EventType == EventType.UpdateTurret)
-                    _movementBuffer.Enqueue(e);
+                        e.EventType == EventType.UpdateTurret ||
+                        e.EventType == EventType.ControlInputs)
+                    _interpolationBuffer.Enqueue(e);
                 else
                     _queue.Enqueue(e);
             }
@@ -721,13 +731,13 @@ namespace ReplayMod.Core
             public bool TryTakeIfReady(double time, out IReplayEvent e)
             {
                 e = null;
-                if(_movementBuffer.TryPeek(out var check))
+                if(_interpolationBuffer.TryPeek(out var check))
                 {
                     if(check.EventType == EventType.Move ||
                         check.EventType == EventType.UpdateTurret
                         && time >= check.Time - 4)
                     {
-                        _movementBuffer.TryDequeue(out e);
+                        _interpolationBuffer.TryDequeue(out e);
                         _freeSpace.Release();
                         return true;
                     }

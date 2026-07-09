@@ -8,7 +8,8 @@ using ReplayMod.Core;
 
 namespace ReplayMod.Events.ConcreteEvents
 {
-    public class UpdateTurretTransform : IReplayEvent
+    [ReplayEvent(EventType.UpdateTurret)]
+    public class UpdateTurretEvent : IReplayEvent
     {
         public double Time { get ; set ; }
 
@@ -23,7 +24,7 @@ namespace ReplayMod.Events.ConcreteEvents
         {
             if (worker is UnitController u)
             {
-                u.AddTurretSnapshot(this); 
+                u.Execute(this); 
             }
         }
 

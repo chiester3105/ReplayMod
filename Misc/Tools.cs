@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using ReplayMod.Data;
 
-namespace ReplayMod
+namespace ReplayMod.Misc
 {
     public static class Tools
     {
@@ -45,5 +45,7 @@ namespace ReplayMod
             }
             return best;
         }
+
+        
     }
 }

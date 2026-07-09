@@ -7,9 +7,9 @@ namespace ReplayMod.Patches.WeaponPatches
     public class WeaponStationPatch
     {
         public static Action<WeaponStation, Unit, Unit> onWeaponStationFire;
-        [HarmonyPatch("LaunchMount")]
+        [HarmonyPatch("Fire")]
         [HarmonyPostfix]
-        public static void FirePatch(WeaponStation __instance, Unit owner, Unit target, GlobalPosition aimpoint)
+        public static void FirePatch(WeaponStation __instance, Unit owner, Unit target)
         {
             onWeaponStationFire?.Invoke(__instance, owner, target);
         }

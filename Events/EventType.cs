@@ -11,6 +11,8 @@
         PartDetach,
         ToggleGear,
         UpdateTurret,
-        WeaponFire
+        WeaponFire,
+        WeaponManagerFire,
+        SetWeaponStation,
     }
 }

@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Reflection;
 
-namespace ReplayMod
+namespace ReplayMod.Misc
 {
     public static class ReflectionCache
     {

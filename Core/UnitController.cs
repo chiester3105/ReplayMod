@@ -1,22 +1,25 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using Cysharp.Threading.Tasks;
+using Mirage;
 using NuclearOption.Jobs;
 using NuclearOption.SavedMission;
 using NuclearOption.SceneLoading;
 using ReplayMod.Data;
 using ReplayMod.Events.ConcreteEvents;
+using ReplayMod.Misc;
 using UnityEngine;
 
 using Object = UnityEngine.Object;
+using SpawnEvent = ReplayMod.Events.ConcreteEvents.SpawnEvent;
 namespace ReplayMod.Core
 {
     public class UnitController
     {
         private Dictionary<uint, PersistentID> _unitMap = new();
         private Dictionary<PersistentID, uint> _reverseUnitMap = new();
-        private Dictionary<uint, double> _lastFrameTime = new();
         
         private Dictionary<PersistentID, bool> _isRbDisabled = new();
         private MapKey _currentMap;
@@ -24,12 +27,10 @@ namespace ReplayMod.Core
         {
             _currentMap = key;
         }
-        public void SpawnUnit(SpawnEvent e)
+        public void Execute(SpawnEvent e)
         {
             try
             {
-                
-                //Plugin.logger.LogInfo('1');
                 if (!Encyclopedia.Lookup.TryGetValue(e.jsonKey, out var definition))
                     Plugin.logger.LogWarning("cant spawn unit");
                 //Plugin.logger.LogInfo($"trying to spawn {e.jsonKey}");
@@ -39,9 +40,9 @@ namespace ReplayMod.Core
                     Plugin.logger.LogError("current Spawner is null");
                     return;
                 }
-                
+
                 var hq = FactionRegistry.HqFromName(e.factionName);
-                if(hq == null)
+                if (hq == null)
                 {
                     Plugin.logger.LogInfo("hq is null");
                     return;
@@ -91,20 +92,15 @@ namespace ReplayMod.Core
                     _reverseUnitMap[u.persistentID] = e.unitId;
                     _isRbDisabled[u.persistentID] = false;
 
-                    
-                    
-                        if (_queuedSnapshots.TryGetValue(e.unitId, out var snapshots))
+                    if (_queuedSnapshots.TryGetValue(e.unitId, out var snapshots))
+                    {
+                        foreach (var snapshot in snapshots)
                         {
-                            foreach (var snapshot in snapshots)
-                            {
-                                AddQueuedSnapshot(snapshot).Forget();
-                            }
-                            _queuedSnapshots.Remove(e.unitId);
+                            AddQueuedSnapshot(snapshot).Forget();
                         }
-                    
-                    
+                        _queuedSnapshots.Remove(e.unitId);
+                    }
                 }
-                
             }
             catch (Exception ex)
             {
@@ -137,7 +133,22 @@ namespace ReplayMod.Core
         {
             Plugin.logger.LogInfo($"Trying to spawn missile");
             TrySearchUnit(e.ownerId, out var pid, out var owner);
-            return NetworkSceneSingleton<Spawner>.i.SpawnMissile(def, e.pos.ToLocalPosition(), e.rotation, e.startingVelocity, null, owner);  
+
+            //return NetworkSceneSingleton<Spawner>.i.SpawnMissile(def, e.pos.ToLocalPosition(), e.rotation, e.startingVelocity, null, owner);
+
+            GameObject gameObject = UnityEngine.Object.Instantiate<GameObject>(def.unitPrefab, e.pos.ToLocalPosition(), e.rotation);
+            gameObject.GetComponent<Rigidbody>().velocity = e.startingVelocity;
+            Missile component = gameObject.GetComponent<Missile>();
+            component.NetworkHQ = ((owner != null) ? owner.NetworkHQ : null);
+            component.NetworkunitName = component.definition.unitName;
+            component.NetworkownerID = ((owner != null) ? owner.persistentID : PersistentID.None);
+            component.SetTarget(null);
+            component.NetworkstartPosition = e.pos;
+            component.NetworkstartOffsetFromOwner = e.pos.ToLocalPosition() - owner.transform.position;
+            component.NetworkstartingVelocity = e.startingVelocity;
+            component.NetworkstartRotation = e.rotation;
+            NetworkSceneSingleton<Spawner>.i.ServerObjectManager.Spawn(obj: gameObject, owner: null);
+            return component;
         }
 
         
@@ -305,12 +316,14 @@ namespace ReplayMod.Core
             }
         }
 
-        public void ApplyInputs(UpdateInputsEvent e)
+        
+        public void Execute(UpdateInputsEvent e)
         {
             if (!TrySearchUnit(e.id, out var pid, out var unit) || !(unit is Aircraft a)) return;
-            e.CopyToControlInputs(a.controlInputs);           
+            
+            
         }
-        public void DetachPart(DetachPartEvent e)
+        public void Execute(DetachPartEvent e)
         {
             if (!TrySearchUnit(e.unitID, out var pid, out var unit)) return;
 
@@ -383,7 +396,7 @@ namespace ReplayMod.Core
 
         private Dictionary<uint, List<TurretSnapshot>> _queuedSnapshots = new();
         private Dictionary<Turret, List<TurretSnapshot>> _turretSnapshots = new();
-        public void AddTurretSnapshot(UpdateTurretTransform e)
+        public void Execute(UpdateTurretEvent e)
         {
             try
             {
@@ -441,7 +454,6 @@ namespace ReplayMod.Core
         }
         public void MoveTurrets(double time)
         {
-           //Plugin.logger.LogInfo($"Trying to move turrets: {_turretSnapshots.Count}");
             foreach(var kvp  in _turretSnapshots)
             {
                 var positions = kvp.Value;
@@ -456,7 +468,6 @@ namespace ReplayMod.Core
                 }
                 if (idx >= positions.Count - 1)
                 {
-
                     SetTurretTransform(turret, positions[positions.Count - 1].elevationAngle, positions[positions.Count - 1].traverseAngle);
                     return;
                 }
@@ -466,7 +477,6 @@ namespace ReplayMod.Core
                 float t = (float)((time - prev.time) / (next.time - prev.time));
                 t = Mathf.Clamp01(t);
 
-                // interpolation gp -> vector3
                 float elevationAngle = Mathf.Lerp(prev.elevationAngle, next.elevationAngle, t);
                 float traverseAngle = Mathf.Lerp(prev.traverseAngle, next.traverseAngle, t);
 
@@ -477,49 +487,43 @@ namespace ReplayMod.Core
         }
 
         private void SetTurretTransform(Turret turret, float elevation, float traverse)
-        {
-            
+        {     
             turret.elevationTransform.localEulerAngles = new Vector3(elevation, 0f, 0f);
             turret.transform.localEulerAngles = new Vector3(0f, traverse, 0f);
 
             turret.elevationAngle = elevation;
             turret.traverseAngle = traverse;
-            //Plugin.logger.LogInfo($"Update turret tranform for turret {turret}, attached {turret.attachedUnit}\n" +
+            //Plugin.DebugLog($"Update turret tranform for turret {turret}, attached {turret.attachedUnit}\n" +
             //   $"entered elevation and traverse: {elevation}; {traverse}|\n" +
             //    $"current: {turret.elevationAngle}; {turret.traverseAngle}");
         }
 
-        public void ExecuteFire(WeaponFireEvent e)
+        public void Execute(SetActiveStationEvent e)
         {
             if (!TrySearchUnit(e.unitId, out var pid, out var unit)) return;
-            if (e.stationIdx > unit.weaponStations.Count) return;
-            WeaponStation station = unit.weaponStations[e.stationIdx];
-
-            if (station.Weapons == null || e.weaponIdx >= station.Weapons.Count) return;
-
-            var weapon = station.Weapons[e.weaponIdx];
-            if (weapon == null) return;
-
-            if (weapon is MountedMissile missile)
-            {
-                missile.RemoveFromHardpoint();
-                missile.fired = true;
-                missile.gameObject.SetActive(false);
-            }
-            else if (weapon is Gun gun)
-            {
-                gun.ammo--;
-                if (gun.ammo <= 0)
-                    gun.gameObject.SetActive(false);
-                gun.SpawnBullet(0);
-            }
-            else
-            {
-                weapon.gameObject.SetActive(false);
-            }
-
-            station.Weapons.RemoveAt(e.weaponIdx);
-            station.AccountAmmo();
+            if (!(unit is Aircraft aircraft)) return;
+            aircraft.weaponManager.SetActiveStation(e.stationIdx);
+            Plugin.DebugLog($"[SetActiveStation] idx: {e.stationIdx} | weaponInfo: {aircraft.weaponManager.currentWeaponStation.WeaponInfo.weaponName}");
         }
+        public void WeaponManagerFire(WeaponManagerFireEvent e)
+        {
+            if (!TrySearchUnit(e.unitId, out var pid, out var unit)) return;
+            if (!(unit is Aircraft aircraft)) return;
+            aircraft.weaponManager.Fire();
+            Plugin.DebugLog($"[WeaponManagerFire] weaponInfo: {aircraft.weaponManager.currentWeaponStation.WeaponInfo.weaponName}");
+            if(unit.rb != null) Plugin.DebugLog($"Velocity: {unit.rb.velocity}");
+        } 
+
+        public void Update(double time)
+        {
+            MoveTurrets(time);
+        }
+
+
+        public void Execute(UpdatePositionEvent e)
+        {
+
+        }
+
     }
 }

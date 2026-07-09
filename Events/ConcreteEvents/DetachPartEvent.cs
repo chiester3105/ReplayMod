@@ -3,6 +3,7 @@ using ReplayMod.Core;
 
 namespace ReplayMod.Events.ConcreteEvents
 {
+    [ReplayEvent(EventType.PartDetach)]
     public class DetachPartEvent : IReplayEvent
     {
         public double Time { get; set; }
@@ -15,7 +16,7 @@ namespace ReplayMod.Events.ConcreteEvents
         {
             if (worker is UnitController u)
             {
-                u.DetachPart(this);
+                u.Execute(this);
             }
         }
 

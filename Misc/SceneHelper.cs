@@ -5,7 +5,7 @@ using NuclearOption.SavedMission;
 using NuclearOption.SavedMission.ObjectiveV2;
 using NuclearOption.SceneLoading;
 
-namespace ReplayMod
+namespace ReplayMod.Misc
 {
     public static class SceneHelper
     {

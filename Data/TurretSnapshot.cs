@@ -15,7 +15,7 @@ namespace ReplayMod.Data
         public double time;
         public byte weaponStationIdx;
         public byte turretIdx;
-        public static TurretSnapshot Create(UpdateTurretTransform e)
+        public static TurretSnapshot Create(UpdateTurretEvent e)
         {
             return new TurretSnapshot
             {

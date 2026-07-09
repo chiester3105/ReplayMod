@@ -3,6 +3,7 @@ using ReplayMod.Core;
 
 namespace ReplayMod.Events.ConcreteEvents
 {
+    [ReplayEvent(EventType.Despawn)]
     public class DespawnEvent : IReplayEvent
     {
         public EventType EventType { get; } = EventType.Despawn;

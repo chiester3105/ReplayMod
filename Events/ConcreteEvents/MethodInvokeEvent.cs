@@ -3,6 +3,7 @@ using System.IO;
 
 namespace ReplayMod.Events.ConcreteEvents
 {
+    [ReplayEvent(EventType.Command)]
     public class MethodInvokeEvent : IReplayEvent
     {
         public uint unitId;

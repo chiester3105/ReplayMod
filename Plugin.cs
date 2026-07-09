@@ -7,7 +7,8 @@ using Cysharp.Threading.Tasks;
 using System.Collections.Concurrent;
 using ReplayMod.Core;
 using ReplayMod.Camera;
-using UnityEngine;
+using ReplayMod.Events;
+using ReplayMod.Misc;
 
 namespace ReplayMod
 {
@@ -15,16 +16,14 @@ namespace ReplayMod
     {
         public const string GUID = "com.chiester3105.replayMod";
         public const string Name = "ReplayMod";
-        public const string Version = "1.1.0";
+        public const string Version = "1.1.2";
     }
     
     [BepInPlugin(PluginInfo.GUID, PluginInfo.Name, PluginInfo.Version)]
     
     public class Plugin : BaseUnityPlugin
     {
-        
-
-        public static ManualLogSource logger;
+        public static ManualLogSource logger { get; private set; }
         public static Plugin Instance { get; private set; }
         public static ReplayManager ReplayManager { get; private set; }
 
@@ -36,7 +35,6 @@ namespace ReplayMod
 
         public void Awake()
         {
-            
             try
             {
                 gameObject.AddComponent<CameraManager>();
@@ -51,9 +49,10 @@ namespace ReplayMod
                 Plugin.logger.LogInfo("Harmony patches applied");
                 LoadVersionInfo();
                 Plugin.logger.LogInfo("Plugin loaded");
-                Task.Run(() => EncyclopediaLookup());
+                //Task.Run(() => EncyclopediaLookup());
 
                 ConfigManager.Configure(this.Config);
+                ReplayEventFactory.RegisterTypes();
             }
             catch (Exception e)
             {
@@ -73,12 +72,6 @@ namespace ReplayMod
             {
                 foreach (var kvp in Encyclopedia.Lookup)
                 {
-                    /*
-                    Plugin.logger.LogInfo($"KEY: {kvp.Key} " +
-                        $"| defUnitName {kvp.Value.unitName}" +
-                        $"| jsonKey {kvp.Value.jsonKey}" +
-                        $"| bogeyName {kvp.Value.bogeyName}");
-                    */
                     if (kvp.Key != kvp.Value.jsonKey)
                     {
                         Plugin.logger.LogError($"key {kvp.Key}, jsonKey {kvp.Value.jsonKey}");
@@ -103,26 +96,7 @@ namespace ReplayMod
             {
                 action.Invoke();
             }
-            
-            /*
-            if(Input.GetKeyDown(KeyCode.L))
-            {
-                DebugTools.DisableRbToSelectedAircraft();
-            }
-            if(Input.GetKeyDown(KeyCode.X))
-            {
-                DebugTools.DetachRandomPart();
-            }
-            if (Input.GetKeyDown(KeyCode.Y))
-            {
-                DebugTools.ShowWeaponStations();
-            }*/
         }  
-       
-        public void FixedUpdate()
-        {
-
-        }
 
         private static ConcurrentQueue<Action> _executionQueue = new();
         public static void SafeLog(string message)
@@ -150,6 +124,5 @@ namespace ReplayMod
             if(ConfigManager.EnableDebugLogs.Value)
                 logger.LogInfo($"[Debug] {message}");
         }
-
     }
 }

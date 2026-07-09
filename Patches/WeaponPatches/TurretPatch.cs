@@ -9,8 +9,7 @@ namespace ReplayMod.Patches.WeaponPatches
         [HarmonyPatch("FixedUpdate")]
         [HarmonyPrefix]
         public static bool FixedUpdatePatch(Turret __instance)
-        {
-           
+        {     
             return ReplayManager.i.GetState() != ModStates.Replay;
         }
     }

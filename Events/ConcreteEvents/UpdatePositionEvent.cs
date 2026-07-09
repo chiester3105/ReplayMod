@@ -1,10 +1,12 @@
 ﻿using UnityEngine;
 using System.IO;
 using ReplayMod.Data;
+using ReplayMod.Misc;
 
 
 namespace ReplayMod.Events.ConcreteEvents
 {
+    [ReplayEvent(EventType.Move)]
     public class UpdatePositionEvent : IReplayEvent
     {
         public EventType EventType { get; } = EventType.Move;
@@ -15,15 +17,25 @@ namespace ReplayMod.Events.ConcreteEvents
         public Quaternion rotation;
         public Vector3 velocity;
 
+        public const int QUANT = 100;
+        public const int ROT_QUANT = 1000;
+        public bool isAbs;
         public void Execute(object worker)
         {
-            //noooo, bad idea
+
         }
 
         public void Read(BinaryReader br)
         {
             unitId = (uint)br.ReadInt32();
             Time = br.ReadDouble();
+
+            //post 2.0.0
+            //isAbs = br.ReadBoolean();
+            //EventsHelper.ReadCompressedPosition(this, br);
+
+            //Plugin.logger.LogInfo($"UPE: {position}, r{rotation}, v{velocity}");
+            // pre 2.0.0 
 
             position = new GlobalPosition()
             {
@@ -61,6 +73,11 @@ namespace ReplayMod.Events.ConcreteEvents
         {
             bw.Write(unitId);
             bw.Write(Time);
+
+            //post 2.0.0
+            //EventsHelper.WriteCompressedPosition(this, bw);
+            //Plugin.logger.LogInfo($"UPE: {position}, r{rotation}, v{velocity}");
+            //pre 2.0.0 
 
             bw.Write(position.x);
             bw.Write(position.y);

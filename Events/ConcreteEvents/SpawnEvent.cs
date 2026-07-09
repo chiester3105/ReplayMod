@@ -2,13 +2,11 @@
 using UnityEngine;
 using ReplayMod.Data;
 using ReplayMod.Core;
-using NuclearOption.SavedMission;
-using Mirage.Serialization;
 using System.Collections.Generic;
-using System;
 
 namespace ReplayMod.Events.ConcreteEvents
 {
+    [ReplayEvent(EventType.Spawn)]
     public class SpawnEvent : IReplayEvent
     {
         public EventType EventType { get; }  = EventType.Spawn;
@@ -26,10 +24,8 @@ namespace ReplayMod.Events.ConcreteEvents
         public ulong liveryId;
         public int liveryIndex;
         public List<WeaponMount> weapons;
-
         public void Execute(object worker)
         {
-            //MySpawner.Spawn(definitionName, pos, rotation, factionName, unitId);
             if (!(worker is UnitController controller))
             {
                 Plugin.logger.LogError("error executing spawn event");
@@ -37,9 +33,7 @@ namespace ReplayMod.Events.ConcreteEvents
             }
 
             Plugin.DebugLog($"Executing spawn: {unitId} {jsonKey}");
-            controller.SpawnUnit(this);
-            //Plugin.logger.LogInfo($"Spawn executed: {unitId} {jsonKey}");
-            
+            controller.Execute(this);
         }
         public void Write(BinaryWriter bw)
         {
@@ -65,7 +59,6 @@ namespace ReplayMod.Events.ConcreteEvents
             bw.Write(isAircraft);
             if(isAircraft)
             {
-
                 bw.Write((byte)liveryType);
                 bw.Write(liveryId);
                 bw.Write(liveryIndex);
@@ -166,12 +159,6 @@ namespace ReplayMod.Events.ConcreteEvents
             this.liveryId = snapshot.liveryId;
             this.weapons = new List<WeaponMount>(snapshot.weapons); 
             this.ownerId = snapshot.ownerId;
-        }
-
-
-        
-        
-
-        
+        }   
     }
 }

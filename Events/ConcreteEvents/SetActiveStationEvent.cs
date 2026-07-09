@@ -3,37 +3,37 @@ using ReplayMod.Core;
 
 namespace ReplayMod.Events.ConcreteEvents
 {
-    [ReplayEvent(EventType.ToggleGear)]
-    public class SetGearEvent : IReplayEvent
+    [ReplayEvent(EventType.SetWeaponStation)]
+    public class SetActiveStationEvent : IReplayEvent
     {
-        public double Time { get ; set; }
+        public double Time { get; set ; }
 
-        public EventType EventType { get; } = EventType.ToggleGear;
+        public EventType EventType { get; } = EventType.SetWeaponStation;
+
         public uint unitId;
-        public bool deployed;
+        public byte stationIdx;
         public void Execute(object worker = null)
         {
-            Plugin.DebugLog($"Executing setgear");
-            if (worker is UnitController u) u.SetGear(this);
+            if (worker is UnitController controller)
+                controller.Execute(this);
         }
-
         public void Read(BinaryReader br)
         {
             Time = br.ReadDouble();
+            stationIdx = br.ReadByte();
             unitId = br.ReadUInt32();
-            deployed = br.ReadBoolean();
         }
 
         public void Reset()
         {
-            
+            Time = 0;
         }
 
         public void Write(BinaryWriter bw)
         {
             bw.Write(Time);
+            bw.Write(stationIdx);
             bw.Write(unitId);
-            bw.Write(deployed);
         }
     }
 }

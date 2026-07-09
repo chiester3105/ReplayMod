@@ -40,7 +40,9 @@ namespace ReplayMod.Core
             UnitPatch.onPartDetached += HandlePartDetach;
             AircraftPatch.onSetGear += HandleSetGear;
             MissilePatch.onDetonate += HandleMissileDetonate;
-            WeaponStationPatch.onWeaponStationFire += HandleWeaponStationFire;
+
+            WeaponManagerPatch.onWeaponManagerFire += HandleWeaponManagerFire;
+            WeaponManagerPatch.onSetActiveStation += HandleSetActiveStation;
         }
         private  void Unsubscribe()
         {
@@ -49,7 +51,9 @@ namespace ReplayMod.Core
             UnitPatch.onPartDetached -= HandlePartDetach;
             AircraftPatch.onSetGear -= HandleSetGear;
             MissilePatch.onDetonate -= HandleMissileDetonate;
-            WeaponStationPatch.onWeaponStationFire -= HandleWeaponStationFire;
+
+            WeaponManagerPatch.onWeaponManagerFire -= HandleWeaponManagerFire;
+            WeaponManagerPatch.onSetActiveStation -= HandleSetActiveStation;
         }
 
         private Dictionary<PersistentID, Unit> _unitsOnTrack = new();
@@ -66,7 +70,6 @@ namespace ReplayMod.Core
                 Plugin.logger.LogError($"Collision detected:\n" +
                     $"Existing unit: {u}\n" +
                     $"Trying to add: {unit}");
-
             }
             else
             {
@@ -105,7 +108,7 @@ namespace ReplayMod.Core
                     writer.liveryIndex = aircraft.LiveryKey.Index;
                     writer.liveryType = aircraft.LiveryKey.Type;
 
-                    if (aircraft.loadout.weapons == null) Plugin.logger.LogInfo("LOADOUT IS NULL WTF");
+                    if (aircraft.loadout.weapons == null) Plugin.logger.LogWarning("LOADOUT IS NULL");
                     writer.weapons = aircraft.loadout.weapons;
                 }
                 else
@@ -187,21 +190,27 @@ namespace ReplayMod.Core
                 }
             }
         }
-        
 
-        private void HandleWeaponStationFire(WeaponStation station, Unit owner, Unit target)
+        private void HandleSetActiveStation(WeaponManager manager, byte stationIdx)
         {
-            Plugin.DebugLog($"Writing fire event");
-            var writer = ReplayEventFactory.GetEvent<WeaponFireEvent>();
+            var writer = ReplayEventFactory.GetEvent<SetActiveStationEvent>();
             writer.Time = _virtualTime;
-            writer.unitId = owner.persistentID.Id;
-            writer.stationIdx = station.Number;
-            writer.weaponIdx = (byte)station.weaponIndex;
-            //writer.targetsCount 
+            writer.unitId = manager.aircraft.persistentID.Id;
+            writer.stationIdx = stationIdx;
+
             _eventQueue.Add(writer);
             _eventCount++;
         }
 
+        private void HandleWeaponManagerFire(WeaponManager manager)
+        {
+            var writer = ReplayEventFactory.GetEvent<WeaponManagerFireEvent>();
+            writer.Time = _virtualTime;
+            writer.unitId = manager.aircraft.persistentID.Id;
+
+            _eventQueue.Add(writer);
+            _eventCount++;
+        }
         private Dictionary<PersistentID, double> _lastPositionUpdateTime = new();
         private Dictionary<PersistentID, double> _lastInputUpdateTime = new();
         private Dictionary<PersistentID, double> _lastTurretUpdateTime = new();
@@ -259,7 +268,7 @@ namespace ReplayMod.Core
 
                         foreach (var turret in kvp.Value)
                         {
-                            var writer = ReplayEventFactory.GetEvent<UpdateTurretTransform>();
+                            var writer = ReplayEventFactory.GetEvent<UpdateTurretEvent>();
 
                             writer.Time = _virtualTime;
                             writer.turretIdx = turret.turretIndex;
@@ -366,7 +375,6 @@ namespace ReplayMod.Core
             _eventQueue = null;
         }
 
-
         public async Task StopAndDestroy()
         {
             await StopRecording();
@@ -439,7 +447,6 @@ namespace ReplayMod.Core
             bw.Write((byte)0);
             bw.Write((byte)0);
             bw.Write((byte)0);
-
 
             //details
             _durationPosition = fs.Position;
