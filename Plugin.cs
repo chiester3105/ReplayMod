@@ -116,8 +116,7 @@ namespace ReplayMod
             string[] args = PluginInfo.Version.Split('.');
             Major = byte.Parse(args[0]);
             Minor = byte.Parse(args[1]);
-            Patch = byte.Parse(args[2]);
-            
+            Patch = byte.Parse(args[2]); 
         }
         public static void DebugLog(string message)
         {

@@ -172,7 +172,6 @@ namespace ReplayMod.Core
             }
         }
         
-        private ConcurrentDictionary<uint, List<PositionSnapshot>> _unitSnapshots = new();
         /// <summary>
         /// Reads events from file. ReadOffset points on file offset.
         /// To read from beginning readOffset should be equal _dataStartOffset
@@ -456,7 +455,6 @@ namespace ReplayMod.Core
         {  
             await _unitCotroller.ResetWorld();
             _buffer.ClearAndReturnToPool();
-            _unitSnapshots.Clear();
             _restoreBuffer.Clear();
             ReplayManager.i.onReset?.Invoke();
         }
@@ -572,40 +570,12 @@ namespace ReplayMod.Core
                 if (reader.EventType != EventType.Move && reader.EventType != EventType.UpdateTurret)
                     Plugin.DebugLog($"Reading event: {reader.EventType}");
 
-                //todo: move this block to unit controller + switch to linked list
-                if (reader is UpdatePositionEvent move)
-                {
-                    var id = move.unitId;
-                    var snapshot = new PositionSnapshot
-                    {
-                        position = move.position,
-                        rotation = move.rotation,
-                        velocity = move.velocity,
-                        time = move.Time
-                    };
-                    if (_unitSnapshots.TryGetValue(id, out var collection))
-                    {
-                        collection.Add(snapshot);
-                    }
-                    else
-                    {
-                        _unitSnapshots.TryAdd(id, new List<PositionSnapshot>() { snapshot });
-                    }
-                    ReplayEventFactory.Return(move);
-                }
-                else
-                {
-                    reader.Execute(_unitCotroller);
-                    ReplayEventFactory.Return(reader);
-                }
-            }
-
-            foreach (var kvp in _unitSnapshots)
-            {
-                _unitCotroller.MoveUnit(kvp.Key, kvp.Value, currentVirtualTime); ;
+                reader.Execute(_unitCotroller);
+                ReplayEventFactory.Return(reader);
             }
 
             _unitCotroller.Update(currentVirtualTime);
+
             if (currentVirtualTime >= replayDuration - 0.01f) ForcePause();
 
             if (_cameraFlightEnabled)
@@ -619,7 +589,6 @@ namespace ReplayMod.Core
                 else
                     MoveCamera();
             }
-           
             currentVirtualTime += Time.deltaTime;
         }
 
@@ -693,6 +662,8 @@ namespace ReplayMod.Core
             //separated buffers
             private ConcurrentQueue<IReplayEvent> _queue = new();
             private ConcurrentQueue<IReplayEvent> _interpolationBuffer = new();
+
+            private double bufferSecWindow = 4;
             
             private int _capacity;
             private SemaphoreSlim _freeSpace;
@@ -733,9 +704,10 @@ namespace ReplayMod.Core
                 e = null;
                 if(_interpolationBuffer.TryPeek(out var check))
                 {
-                    if(check.EventType == EventType.Move ||
-                        check.EventType == EventType.UpdateTurret
-                        && time >= check.Time - 4)
+                    if((check.EventType == EventType.Move ||
+                        check.EventType == EventType.UpdateTurret ||
+                        check.EventType == EventType.ControlInputs)
+                        && time >= check.Time - bufferSecWindow)
                     {
                         _interpolationBuffer.TryDequeue(out e);
                         _freeSpace.Release();
@@ -759,6 +731,11 @@ namespace ReplayMod.Core
             public void ClearAndReturnToPool()
             {
                 while(_queue.TryDequeue(out var e))
+                {
+                    ReplayEventFactory.Return(e);
+                    _freeSpace.Release();
+                }
+                while(_interpolationBuffer.TryDequeue(out var e))
                 {
                     ReplayEventFactory.Return(e);
                     _freeSpace.Release();

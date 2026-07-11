@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -132,7 +133,7 @@ namespace ReplayMod.Core
         private Unit SpawnMissile(SpawnEvent e, FactionHQ hq, MissileDefinition def)
         {
             Plugin.logger.LogInfo($"Trying to spawn missile");
-            TrySearchUnit(e.ownerId, out var pid, out var owner);
+            TryGetUnit(e.ownerId, out var pid, out var owner);
 
             //return NetworkSceneSingleton<Spawner>.i.SpawnMissile(def, e.pos.ToLocalPosition(), e.rotation, e.startingVelocity, null, owner);
 
@@ -175,7 +176,7 @@ namespace ReplayMod.Core
             }
             return NetworkSceneSingleton<Spawner>.i.SpawnContainer(def.unitPrefab, e.pos, e.rotation, hq, null);           
         }
-        public bool TrySearchUnit(uint id, out PersistentID pid, out Unit unit)
+        public bool TryGetUnit(uint id, out PersistentID pid, out Unit unit)
         {
             pid = default;
             unit = null;
@@ -189,19 +190,21 @@ namespace ReplayMod.Core
             }
             return true;
         }
+
+        private const short MAX_STALE_SNAPSHOTS = 500;
         public void MoveUnit(uint id, List<PositionSnapshot> positions, double currentTime)
         {
-            if (!TrySearchUnit(id, out var pid, out var unit)) return;
+            if (!TryGetUnit(id, out var pid, out var unit)) return;
             if (positions == null || positions.Count == 0)
                 return;
-
             if (!_isRbDisabled[unit.NetworkpersistentID] && unit is Aircraft a)
             {
                 DisableRb(a);
             }
 
-            // key frames search
             int idx = Tools.FindLastIndex(positions, currentTime);
+            if (unit is Aircraft)
+                Plugin.logger.LogInfo($"idx {idx}");
             if (idx < 0) 
             {
                 SetUnitTransform(unit, positions[0]);
@@ -226,10 +229,13 @@ namespace ReplayMod.Core
             if(unit.rb != null && !unit.rb.isKinematic) unit.rb.velocity = vel;
 
             //if (unit is Aircraft)Plugin.logger.LogInfo($"Unit name: {unit.unitName}, Snapshots count: {positions.Count}, idx {idx}");
-            if (idx >= 50)
+            if (idx >= MAX_STALE_SNAPSHOTS)
             {
-                positions.RemoveRange(0, idx-1);
+                //positions.RemoveRange(0, idx-1);
             }
+
+            if (unit is Aircraft)
+                Plugin.logger.LogInfo($"Moving {unit}, pos {pos.ToGlobalPosition()}");
         }
 
         private void SetUnitTransform(Unit unit, PositionSnapshot snapshot)
@@ -238,6 +244,8 @@ namespace ReplayMod.Core
             unit.transform.SetPositionAndRotation(snapshot.position.ToLocalPosition(), snapshot.rotation);
             if(unit.rb != null && !unit.rb.isKinematic)
                 unit.rb.velocity = snapshot.velocity;
+            if (unit is Aircraft)
+                Plugin.logger.LogInfo($"trying to set transform for unit {unit}");
         }
 
         private void DisableRb(Aircraft aircraft)
@@ -286,6 +294,7 @@ namespace ReplayMod.Core
         {
             try
             {
+                _unitSnapshots.Clear();
                 await UniTask.SwitchToMainThread();
                 Unit[] onScene = Object.FindObjectsOfType<Unit>();
                 foreach (var u in onScene)
@@ -319,13 +328,13 @@ namespace ReplayMod.Core
         
         public void Execute(UpdateInputsEvent e)
         {
-            if (!TrySearchUnit(e.id, out var pid, out var unit) || !(unit is Aircraft a)) return;
+            if (!TryGetUnit(e.id, out var pid, out var unit) || !(unit is Aircraft a)) return;
             
-            
+            //todo: make interpolation buffer
         }
         public void Execute(DetachPartEvent e)
         {
-            if (!TrySearchUnit(e.unitID, out var pid, out var unit)) return;
+            if (!TryGetUnit(e.unitID, out var pid, out var unit)) return;
 
             var partLookup = unit.partLookup;
             var part = partLookup.FirstOrDefault(p => p.id == e.partID);
@@ -342,7 +351,7 @@ namespace ReplayMod.Core
 
         public void DespawnUnit(uint unitId)
         {
-            if(!TrySearchUnit(unitId, out var pid, out var unit)) return;
+            if(!TryGetUnit(unitId, out var pid, out var unit)) return;
             if(unit is Missile m)
             {
                 m.Detonate(m.rb.velocity, false, false);
@@ -353,7 +362,7 @@ namespace ReplayMod.Core
 
         public void SetGear(SetGearEvent e)
         {
-            if (!TrySearchUnit(e.unitId, out var pid, out var unit) || !(unit is Aircraft a)) return;
+            if (!TryGetUnit(e.unitId, out var pid, out var unit) || !(unit is Aircraft a)) return;
             a.SetGear(e.deployed);
         }
 
@@ -401,7 +410,7 @@ namespace ReplayMod.Core
             try
             {
                 TurretSnapshot snapshot = TurretSnapshot.Create(e);
-                if (!TrySearchUnit(e.attachedUnitId, out var pid, out var unit))
+                if (!TryGetUnit(e.attachedUnitId, out var pid, out var unit))
                 {
                     if (_queuedSnapshots.TryGetValue(e.attachedUnitId, out var value))
                     {
@@ -435,7 +444,7 @@ namespace ReplayMod.Core
         private async UniTask AddQueuedSnapshot(TurretSnapshot snapshot)
         {
             await UniTask.Yield();
-            if (!TrySearchUnit(snapshot.ownerId, out var pid, out var unit)) return;
+            if (!TryGetUnit(snapshot.ownerId, out var pid, out var unit)) return;
             Turret turret = null;
             if (snapshot.turretIdx < unit.weaponStations[snapshot.weaponStationIdx].Turrets.Count)
             {
@@ -500,14 +509,14 @@ namespace ReplayMod.Core
 
         public void Execute(SetActiveStationEvent e)
         {
-            if (!TrySearchUnit(e.unitId, out var pid, out var unit)) return;
+            if (!TryGetUnit(e.unitId, out var pid, out var unit)) return;
             if (!(unit is Aircraft aircraft)) return;
             aircraft.weaponManager.SetActiveStation(e.stationIdx);
             Plugin.DebugLog($"[SetActiveStation] idx: {e.stationIdx} | weaponInfo: {aircraft.weaponManager.currentWeaponStation.WeaponInfo.weaponName}");
         }
         public void WeaponManagerFire(WeaponManagerFireEvent e)
         {
-            if (!TrySearchUnit(e.unitId, out var pid, out var unit)) return;
+            if (!TryGetUnit(e.unitId, out var pid, out var unit)) return;
             if (!(unit is Aircraft aircraft)) return;
             aircraft.weaponManager.Fire();
             Plugin.DebugLog($"[WeaponManagerFire] weaponInfo: {aircraft.weaponManager.currentWeaponStation.WeaponInfo.weaponName}");
@@ -517,13 +526,27 @@ namespace ReplayMod.Core
         public void Update(double time)
         {
             MoveTurrets(time);
+
+            foreach(var kvp in _unitSnapshots)
+                MoveUnit(kvp.Key, kvp.Value, time);
         }
 
-
+        private Dictionary<uint, List<PositionSnapshot>> _unitSnapshots = new();
         public void Execute(UpdatePositionEvent e)
         {
+            var id = e.unitId;
+            var snapshot = new PositionSnapshot
+            {
+                position = e.position,
+                rotation = e.rotation,
+                velocity = e.velocity,
+                time = e.Time
+            };
 
+            if (_unitSnapshots.TryGetValue(id, out var collection))
+                collection.Add(snapshot);
+            else
+                _unitSnapshots[id] = new List<PositionSnapshot>() { snapshot };
         }
-
     }
 }

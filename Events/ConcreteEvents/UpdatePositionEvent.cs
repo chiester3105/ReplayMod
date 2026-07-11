@@ -2,6 +2,7 @@
 using System.IO;
 using ReplayMod.Data;
 using ReplayMod.Misc;
+using ReplayMod.Core;
 
 
 namespace ReplayMod.Events.ConcreteEvents
@@ -22,7 +23,8 @@ namespace ReplayMod.Events.ConcreteEvents
         public bool isAbs;
         public void Execute(object worker)
         {
-
+            if(worker is UnitController controller)
+                controller.Execute(this);
         }
 
         public void Read(BinaryReader br)
