@@ -1,0 +1,15 @@
+<Project>
+
+
+	<PropertyGroup>
+		<GameDir Condition="'$(GameDir)' == ''">!!!!ENTER FOLDER HERE!!!!</GameDir>
+		<GameManaged>$(GameDir)\NuclearOption_Data\Managed</GameManaged>
+		<BepInExCore>$(GameDir)\BepInEx\core</BepInExCore>
+		<PluginsDir>$(GameDir)\BepInEx\plugins</PluginsDir>
+	</PropertyGroup>
+
+	<Target Name="CheckGameDir" BeforeTargets="ResolveAssemblyReferences">
+		<Warning Condition="!Exists('$(GameManaged)')"
+				 Text="GameManaged not found: '$(GameManaged)'." />
+	</Target>
+</Project>

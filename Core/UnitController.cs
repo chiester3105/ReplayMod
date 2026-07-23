@@ -203,8 +203,6 @@ namespace ReplayMod.Core
             }
 
             int idx = Tools.FindLastIndex(positions, currentTime);
-            if (unit is Aircraft)
-                Plugin.logger.LogInfo($"idx {idx}");
             if (idx < 0) 
             {
                 SetUnitTransform(unit, positions[0]);
@@ -231,11 +229,9 @@ namespace ReplayMod.Core
             //if (unit is Aircraft)Plugin.logger.LogInfo($"Unit name: {unit.unitName}, Snapshots count: {positions.Count}, idx {idx}");
             if (idx >= MAX_STALE_SNAPSHOTS)
             {
-                //positions.RemoveRange(0, idx-1);
+                positions.RemoveRange(0, idx-1);
             }
 
-            if (unit is Aircraft)
-                Plugin.logger.LogInfo($"Moving {unit}, pos {pos.ToGlobalPosition()}");
         }
 
         private void SetUnitTransform(Unit unit, PositionSnapshot snapshot)
@@ -325,13 +321,79 @@ namespace ReplayMod.Core
             }
         }
 
-        
+        private Dictionary<uint, List<Inputs>> _inputs = new();
         public void Execute(UpdateInputsEvent e)
         {
             if (!TryGetUnit(e.id, out var pid, out var unit) || !(unit is Aircraft a)) return;
-            
+
             //todo: make interpolation buffer
+            var inputs = new Inputs()
+            {
+                brake = e.brake,
+                pitch = e.pitch,
+                yaw = e.yaw,
+                customAxis1 = e.customAxis1,
+                roll = e.roll,
+                throttle = e.throttle,
+                time = e.Time
+            };
+            if (_inputs.TryGetValue(e.id, out var value))
+                _inputs[e.id].Add(inputs);
+            else
+                _inputs[e.id] = new List<Inputs>() { inputs };
         }
+        private void UpdateInputs(uint id,  List<Inputs> inputs, double time)
+        {
+            if (!TryGetUnit(id, out var pid, out var unit)) return;
+            if (!(unit is Aircraft aircraft)) return;
+            int idx = Tools.FindLastIndex(inputs, time);
+
+            if (idx < 0)
+            {
+                ApplyInputs(aircraft, inputs[0].brake, inputs[0].pitch,
+                    inputs[0].yaw, inputs[0].roll, inputs[0].throttle, inputs[0].customAxis1);
+                return;
+            }
+            if (idx >= inputs.Count - 1)
+            {
+                ApplyInputs(aircraft, inputs[inputs.Count - 1].brake, inputs[inputs.Count - 1].pitch,
+                    inputs[inputs.Count - 1].yaw, inputs[inputs.Count - 1].roll,
+                    inputs[inputs.Count - 1].throttle, inputs[inputs.Count - 1].customAxis1);
+                return;
+            }
+
+            var prev = inputs[idx];
+            var next = inputs[idx + 1];
+            float t = (float)((time - prev.time) / (next.time - prev.time));
+
+            float brake = Mathf.Lerp(prev.brake, next.brake, t);
+            float yaw = Mathf.Lerp(prev.yaw, next.yaw, t);
+            float roll = Mathf.Lerp(prev.roll, next.roll, t);
+            float pitch = Mathf.Lerp(prev.pitch, next.pitch, t);
+            float throttle = Mathf.Lerp(prev.throttle, next.throttle, t);
+            float customAxis1 = Mathf.Lerp(prev.customAxis1, next.customAxis1, t);
+            ApplyInputs(aircraft, brake, pitch, yaw, roll, throttle, customAxis1);
+
+            if(idx >= MAX_STALE_SNAPSHOTS)
+            {
+                inputs.RemoveRange(0, idx - 1);
+            }
+        }
+        private void ApplyInputs(Aircraft aircraft, float brake, float pitch,
+            float yaw, float roll, float throttle, float customAxis1)
+        {
+            var controls = aircraft.controlInputs;
+            if (controls != null)
+            {
+                controls.roll = roll;
+                controls.pitch = pitch;
+                controls.yaw = yaw;
+                controls.brake = brake;
+                controls.throttle = throttle;
+                controls.customAxis1 = customAxis1;
+            }
+        }
+        
         public void Execute(DetachPartEvent e)
         {
             if (!TryGetUnit(e.unitID, out var pid, out var unit)) return;
@@ -529,6 +591,9 @@ namespace ReplayMod.Core
 
             foreach(var kvp in _unitSnapshots)
                 MoveUnit(kvp.Key, kvp.Value, time);
+
+            foreach (var kvp in _inputs)
+                UpdateInputs(kvp.Key, kvp.Value, time);
         }
 
         private Dictionary<uint, List<PositionSnapshot>> _unitSnapshots = new();
@@ -547,6 +612,8 @@ namespace ReplayMod.Core
                 collection.Add(snapshot);
             else
                 _unitSnapshots[id] = new List<PositionSnapshot>() { snapshot };
+
         }
+
     }
 }

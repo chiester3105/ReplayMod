@@ -14,5 +14,7 @@ namespace ReplayMod.Data
         public float throttle;
         public float brake;
         public float customAxis1;
+
+        public double time;
     }
 }
